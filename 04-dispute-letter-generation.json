@@ -1,0 +1,279 @@
+{
+  "name": "04 - Dispute Letter Generation",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 04 \u2014 Dispute Letter Generation\n\nGenerates one dispute letter per bureau for the current round. Letters are grounded in the consumer's FCRA rights:\n\n- **Round 1** \u2014 factual dispute under 15 U.S.C. 1681i\n- **Round 2** \u2014 Method of Verification request, 1681i(a)(7)\n- **Round 3** \u2014 furnisher / procedural escalation, 1681s-2(b)\n\nEvery draft passes a compliance lint and is saved as `pending_review`. **Nothing is mailed without human approval** (Workflow 05).",
+        "height": 320,
+        "width": 480,
+        "color": 4
+      },
+      "id": "a01d0cc1-b3ef-4306-af81-1cd241dae839",
+      "name": "Note abcc5cba",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        -440
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "8cb46ef2-0365-42a3-9062-fb20b2a5fc6d",
+      "name": "When Called by Orchestrator",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ni.item_id, ni.case_id, ni.bureau, ni.creditor,\n       ni.account_number_masked, ni.item_type, ni.dispute_basis,\n       ni.fcra_sections, ni.rationale, c.first_name, c.last_name,\n       c.street, c.city, c.state, c.zip, c.ssn_last4,\n       COALESCE(c.current_round, 1) AS round\nFROM negative_items ni\nJOIN cases c ON c.case_id = ni.case_id\nWHERE ni.case_id = $1 AND ni.analysis_status = 'disputable';",
+        "options": {}
+      },
+      "id": "f16a7dcf-47aa-426a-b5c8-9f0a47c11e6b",
+      "name": "DB: Get Disputable Items",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        40,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Produce one output item per bureau that has disputable items.\nconst rows = $input.all().map(i => i.json);\nif (!rows.length) return [];\nconst byBureau = {};\nfor (const r of rows) (byBureau[r.bureau] = byBureau[r.bureau] || []).push(r);\nreturn Object.entries(byBureau).map(([bureau, items]) => ({ json: {\n  case_id: items[0].case_id, bureau, round: items[0].round,\n  consumer: { first_name: items[0].first_name,\n    last_name: items[0].last_name, street: items[0].street,\n    city: items[0].city, state: items[0].state,\n    zip: items[0].zip, ssn_last4: items[0].ssn_last4 },\n  items } }));"
+      },
+      "id": "69b3be5e-60ca-4dbc-8a48-bc3627a0f499",
+      "name": "Group Items by Bureau",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the Anthropic request to draft one bureau letter.\nconst d = $input.first().json;\nconst roundGuide = {\n  1: 'Round 1: a clear factual dispute under 15 U.S.C. 1681i. State'\n   + ' each inaccuracy and request reinvestigation and correction or'\n   + ' deletion within 30 days.',\n  2: 'Round 2: a Method of Verification request under 1681i(a)(7).'\n   + ' Ask how each item was verified \u2014 describe the procedure, the'\n   + ' business contacted, and the records relied on.',\n  3: 'Round 3: procedural / furnisher escalation citing 1681s-2(b)'\n   + ' and the reasonable-reinvestigation standard. Request deletion'\n   + ' where verification was inadequate.'\n};\nconst system = [\n  'You draft FCRA dispute letters for a licensed credit-repair',\n  'service. Rules: (1) Only assert facts supported by the supplied',\n  'item data and dispute basis. (2) Never instruct anyone to make a',\n  'false statement. (3) No guarantees about outcomes or score',\n  'changes. (4) Plain, firm, professional tone. (5) Cite statute by',\n  'section. Output ONLY the letter body text.'\n].join(' ');\nconst user = [\n  roundGuide[d.round] || roundGuide[1], '',\n  'Bureau: ' + d.bureau,\n  'Consumer: ' + JSON.stringify(d.consumer),\n  'Items to dispute: ' + JSON.stringify(d.items, null, 2)\n].join('\\n');\nreturn [{ json: { ...d, anthropic_request: {\n  model: 'claude-sonnet-4-6', max_tokens: 2048,\n  system, messages: [{ role: 'user', content: user }] } } }];"
+      },
+      "id": "96b1d7ac-894a-49dc-9183-cab846b3c952",
+      "name": "Build Letter Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.anthropic_request) }}",
+        "options": {}
+      },
+      "id": "0667e8c2-0ed7-4908-94ba-4b0f24209722",
+      "name": "Claude: Draft Letter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lint the draft against CROA / FCRA content rules.\nconst resp = $input.first().json;\nconst d = $('Build Letter Prompt').first().json;\nconst body = (resp.content && resp.content[0] && resp.content[0].text) || '';\nconst banned = [/guarantee/i, /guaranteed/i, /erase your debt/i,\n  /new credit identity/i, /CPN/i, /will raise your score/i];\nconst violations = banned.filter(rx => rx.test(body)).map(String);\nconst hasStatute = /1681/.test(body);\nconst passed = violations.length === 0 && hasStatute && body.length > 200;\nreturn [{ json: { case_id: d.case_id, bureau: d.bureau,\n  round: d.round, letter_body: body,\n  item_ids: d.items.map(i => i.item_id),\n  lint_passed: passed, lint_violations: violations,\n  letter_status: passed ? 'pending_review' : 'needs_rewrite' } }];"
+      },
+      "id": "4adb3549-446f-4c91-a2f9-08a8313051d2",
+      "name": "Compliance Lint",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "72bff056-f818-45f9-b529-c89d5eeb0264",
+              "leftValue": "={{ $json.lint_passed }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ba6401ad-d9c0-4e57-8a2e-5a8c7984c1ec",
+      "name": "Lint Passed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO dispute_letters\n  (case_id, bureau, round, letter_body, item_ids, letter_status,\n   created_at)\nVALUES ($1,$2,$3,$4,$5,'pending_review', now())\nRETURNING letter_id;",
+        "options": {}
+      },
+      "id": "3723a9dd-6c56-41e3-a502-70a6e5ad554f",
+      "name": "DB: Save Draft (Pending Review)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1500,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO dispute_letters\n  (case_id, bureau, round, letter_body, item_ids, letter_status,\n   lint_violations, created_at)\nVALUES ($1,$2,$3,$4,$5,'needs_rewrite',$6, now())\nRETURNING letter_id;",
+        "options": {}
+      },
+      "id": "6540f9df-f47c-4412-a953-1c6c2cbe3c77",
+      "name": "DB: Flag for Manual Rewrite",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1500,
+        140
+      ]
+    }
+  ],
+  "connections": {
+    "When Called by Orchestrator": {
+      "main": [
+        [
+          {
+            "node": "DB: Get Disputable Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB: Get Disputable Items": {
+      "main": [
+        [
+          {
+            "node": "Group Items by Bureau",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Group Items by Bureau": {
+      "main": [
+        [
+          {
+            "node": "Build Letter Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Letter Prompt": {
+      "main": [
+        [
+          {
+            "node": "Claude: Draft Letter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude: Draft Letter": {
+      "main": [
+        [
+          {
+            "node": "Compliance Lint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compliance Lint": {
+      "main": [
+        [
+          {
+            "node": "Lint Passed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lint Passed?": {
+      "main": [
+        [
+          {
+            "node": "DB: Save Draft (Pending Review)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "DB: Flag for Manual Rewrite",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "pinData": {},
+  "versionId": "a7bd1424-3c1b-433f-8ebf-e5a3f06ba225",
+  "tags": []
+}

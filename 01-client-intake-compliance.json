@@ -1,0 +1,346 @@
+{
+  "name": "01 - Client Intake & Compliance Gate",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 01 \u2014 Client Intake & Compliance Gate\n\n**Trigger:** the app POSTs a new client here.\n\nThis workflow is the CROA compliance gate. It refuses to create a case unless the client has been shown the *Consumer Credit File Rights* disclosure, signed the services contract, and given written consent. It then opens a mandatory 3-business-day cancellation window \u2014 no dispute work happens until that window closes.\n\n**No upfront fees may be charged before services are performed.**",
+        "height": 320,
+        "width": 460,
+        "color": 4
+      },
+      "id": "10821bdd-4046-40c4-af01-9afffd97a449",
+      "name": "Note 36ca507a",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -640,
+        -380
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "credit-repair/intake",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a533477f-adf7-482b-903e-852eabb81707",
+      "name": "Intake Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -120,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate the intake payload before anything is written.\nconst data = $input.first().json.body || $input.first().json;\nconst required = ['first_name','last_name','email','phone',\n  'date_of_birth','ssn_last4','street','city','state','zip',\n  'plan_tier','consent_given','disclosure_acknowledged',\n  'croa_contract_signed','credit_data_source'];\nconst missing = required.filter(k =>\n  data[k] === undefined || data[k] === null || data[k] === '');\nconst compliant = data.consent_given === true\n  && data.disclosure_acknowledged === true\n  && data.croa_contract_signed === true;\nreturn [{ json: { ...data,\n  _missing: missing,\n  _valid: missing.length === 0,\n  _compliant: compliant } }];"
+      },
+      "id": "ff7cdb51-8b04-48b0-9653-132d3dd2a502",
+      "name": "Validate Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "dd43ef6e-d329-42fc-9cb2-e0995d8458e2",
+              "leftValue": "={{ $json._valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "05c8e602-fbf2-4892-a109-e7c1911f9850",
+              "leftValue": "={{ $json._compliant }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "06758cf4-620f-48ae-86f1-9ec174b6b0df",
+      "name": "Compliance Gate Passed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3fbf3a14-8988-47f2-b5fc-11f3a81b2816",
+              "name": "case_status",
+              "value": "cooling_off",
+              "type": "string"
+            },
+            {
+              "id": "4af329d0-4308-4b03-a195-bd809e3057b1",
+              "name": "intake_received_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "742d650a-cef5-4e83-8614-505f202478b1",
+              "name": "cancellation_deadline",
+              "value": "={{ $now.plus({ days: 3 }).toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "06e1a510-896b-4469-bf9a-a70df7e5cef4",
+              "name": "upfront_fee_charged",
+              "value": "false",
+              "type": "boolean"
+            },
+            {
+              "id": "5807823a-9599-46ff-914f-baff4398e169",
+              "name": "case_id",
+              "value": "={{ 'WEC-' + $now.toFormat('yyyyLLdd') + '-' + Math.random().toString(36).slice(2,8).toUpperCase() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "52930fcf-6332-4c9a-98e8-fda1835afe08",
+      "name": "Open 3-Day Cancellation Window",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        560,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO cases\n  (case_id, first_name, last_name, email, phone, date_of_birth,\n   ssn_last4, street, city, state, zip, plan_tier,\n   credit_data_source, case_status, cancellation_deadline,\n   consent_given, contract_signed, created_at)\nVALUES\n  ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,true,true,now())\nRETURNING case_id, case_status, cancellation_deadline;",
+        "options": {}
+      },
+      "id": "47f2f7ca-615e-4133-bf38-e9d7e0ab0b38",
+      "name": "DB: Insert Client + Case",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        780,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "id",
+          "cachedResultName": "07 - Client Notifications"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "event_type": "intake_confirmed",
+            "case_id": "={{ $json.case_id }}"
+          }
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "2601e793-e1c0-43e5-9cc7-f3123f236aa1",
+      "name": "Trigger Intake Notification",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1000,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: \"accepted\", case_id: $json.case_id, message: \"Intake received. Your 3-day cancellation window is now open; dispute work begins after it closes.\", cancellation_deadline: $json.cancellation_deadline }) }}",
+        "options": {
+          "responseCode": 201
+        }
+      },
+      "id": "9c9d9c9d-8518-4348-b0b6-b45a44fd8b18",
+      "name": "Respond: Accepted",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1240,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1f23e58e-1bff-412e-be59-ff3068c88e47",
+              "name": "status",
+              "value": "rejected",
+              "type": "string"
+            },
+            {
+              "id": "5f3a072c-be32-403c-a0f5-f92553500a79",
+              "name": "reason",
+              "value": "={{ $json._missing.length ? 'Missing required fields: ' + $json._missing.join(', ') : 'Consent, disclosure acknowledgement, and a signed services contract are required before a case can be opened.' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "510c54d3-7e11-4c57-8715-bffacaeccb0b",
+      "name": "Build Rejection Reason",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        560,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 422
+        }
+      },
+      "id": "0e8ba372-5f5b-40d9-98d6-2c97f200a43a",
+      "name": "Respond: Rejected",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        780,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Intake Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Payload": {
+      "main": [
+        [
+          {
+            "node": "Compliance Gate Passed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compliance Gate Passed?": {
+      "main": [
+        [
+          {
+            "node": "Open 3-Day Cancellation Window",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Rejection Reason",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open 3-Day Cancellation Window": {
+      "main": [
+        [
+          {
+            "node": "DB: Insert Client + Case",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB: Insert Client + Case": {
+      "main": [
+        [
+          {
+            "node": "Trigger Intake Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Intake Notification": {
+      "main": [
+        [
+          {
+            "node": "Respond: Accepted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Rejection Reason": {
+      "main": [
+        [
+          {
+            "node": "Respond: Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "pinData": {},
+  "versionId": "34ae97cd-93c6-4205-938b-f7938528a10a",
+  "tags": []
+}

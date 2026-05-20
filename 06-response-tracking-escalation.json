@@ -1,0 +1,459 @@
+{
+  "name": "06 - Response Tracking & Escalation",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 06 \u2014 Response Tracking & Escalation\n\nRuns daily. Finds letters whose FCRA 30-day reinvestigation window has closed, re-pulls the report, and compares: which items were **deleted**, **verified**, or **ignored**. Claude recommends the next move; resolved cases close, unresolved items escalate to the next dispute round (re-entering Workflow 04).",
+        "height": 270,
+        "width": 470,
+        "color": 4
+      },
+      "id": "da9ce237-31a3-404e-aa73-e195c89fc1b6",
+      "name": "Note c663f916",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        -440
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "id": "989edbef-e1a8-4e81-ac82-5d315fb89521",
+      "name": "Daily Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT DISTINCT case_id\nFROM dispute_letters\nWHERE letter_status = 'mailed'\n  AND fcra_response_due < now();",
+        "options": {}
+      },
+      "id": "f13e1872-017f-40e3-9759-43675ce298ed",
+      "name": "DB: Letters Past FCRA Window",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        20,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "0efd696d-77e8-46e1-9b53-9ebce67d5964",
+      "name": "Loop Over Cases",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "id",
+          "cachedResultName": "02 - Credit Report Ingestion"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "case_id": "={{ $json.case_id }}"
+          }
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "2f37d64f-ea97-4186-a06d-47e308ff8889",
+      "name": "Re-Ingest Updated Report",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT item_id, creditor, bureau, dispute_basis,\n       prior_status, reported_status,\n       CASE\n         WHEN reported_status IS NULL THEN 'deleted'\n         WHEN reported_status = prior_status THEN 'verified'\n         ELSE 'changed' END AS outcome\nFROM negative_items WHERE case_id = $1;",
+        "options": {}
+      },
+      "id": "b2c9991f-8cc9-4d16-a95f-1f91112a0a30",
+      "name": "DB: Compare Item States",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Ask Claude to evaluate the round and recommend next steps.\nconst rows = $input.all().map(i => i.json);\nconst caseId = rows.length ? rows[0].case_id : null;\nconst system = 'You are an FCRA strategist. Given the outcome of a '\n  + 'dispute round, recommend the next action. Items still verified '\n  + 'without adequate proof may escalate (Method of Verification, '\n  + 'then furnisher dispute). Never recommend disputing items that '\n  + 'were correctly verified and are accurate. Return ONLY JSON.';\nconst user = 'Round outcomes: ' + JSON.stringify(rows, null, 2)\n  + '\\nReturn JSON: {\"case_outcome\": one of '\n  + '[\"all_resolved\",\"partial\",\"no_progress\"], '\n  + '\"escalate\": boolean, \"next_round_items\": [item_id], '\n  + '\"summary\": string}';\nreturn [{ json: { case_id: caseId, anthropic_request: {\n  model: 'claude-sonnet-4-6', max_tokens: 1024,\n  system, messages: [{ role: 'user', content: user }] } } }];"
+      },
+      "id": "ebb66d44-7807-486c-8138-5440fe0288d9",
+      "name": "Build Outcome Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.anthropic_request) }}",
+        "options": {}
+      },
+      "id": "76dbaecd-497e-4743-882f-49d46f067c9b",
+      "name": "Claude: Evaluate Round",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst text = (resp.content && resp.content[0] && resp.content[0].text) || '{}';\nlet v;\ntry { v = JSON.parse(text.match(/\\{[\\s\\S]*\\}/)[0]); }\ncatch (e) { v = { case_outcome: 'partial', escalate: true,\n  next_round_items: [], summary: 'parse_error' }; }\nconst caseId = $('Build Outcome Prompt').first().json.case_id;\nreturn [{ json: { case_id: caseId, ...v } }];"
+      },
+      "id": "323b87b3-0089-4ee2-9fc3-a618c222abe1",
+      "name": "Parse Outcome",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1460,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "74814a41-7f20-44e8-86ad-163fccb92128",
+                    "leftValue": "={{ $json.case_outcome }}",
+                    "rightValue": "all_resolved",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Resolved"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "a31df383-945b-4b20-936c-8dc2ce078788",
+      "name": "Resolved or Escalate?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1700,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE cases SET case_status = 'resolved', closed_at = now()\nWHERE case_id = $1;",
+        "options": {}
+      },
+      "id": "423c0627-7162-4224-abd3-664edae4f059",
+      "name": "DB: Close Case",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1960,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE cases SET current_round = COALESCE(current_round,1) + 1,\n  case_status = 'escalating'\nWHERE case_id = $1 RETURNING current_round;",
+        "options": {}
+      },
+      "id": "2776384d-435e-4288-a5fb-beff47afa77e",
+      "name": "DB: Increment Round",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1960,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "id",
+          "cachedResultName": "04 - Dispute Letter Generation"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "case_id": "={{ $json.case_id }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "c3dab88f-f49e-4aa3-be29-df8043eadd1b",
+      "name": "Generate Next Round Letters",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "id",
+          "cachedResultName": "07 - Client Notifications"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "event_type": "round_results",
+            "case_id": "={{ $json.case_id }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "407b16b9-3c3a-4a9c-8395-d0de055a1a7e",
+      "name": "Trigger Results Notification",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        -140
+      ]
+    }
+  ],
+  "connections": {
+    "Daily Schedule": {
+      "main": [
+        [
+          {
+            "node": "DB: Letters Past FCRA Window",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB: Letters Past FCRA Window": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Cases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Cases": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Re-Ingest Updated Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-Ingest Updated Report": {
+      "main": [
+        [
+          {
+            "node": "DB: Compare Item States",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB: Compare Item States": {
+      "main": [
+        [
+          {
+            "node": "Build Outcome Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Outcome Prompt": {
+      "main": [
+        [
+          {
+            "node": "Claude: Evaluate Round",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude: Evaluate Round": {
+      "main": [
+        [
+          {
+            "node": "Parse Outcome",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Outcome": {
+      "main": [
+        [
+          {
+            "node": "Resolved or Escalate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolved or Escalate?": {
+      "main": [
+        [
+          {
+            "node": "DB: Close Case",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "DB: Increment Round",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB: Close Case": {
+      "main": [
+        [
+          {
+            "node": "Trigger Results Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB: Increment Round": {
+      "main": [
+        [
+          {
+            "node": "Generate Next Round Letters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Results Notification": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Cases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Next Round Letters": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Cases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "pinData": {},
+  "versionId": "6bc614b5-62de-4106-a98a-65e5f0643c83",
+  "tags": []
+}

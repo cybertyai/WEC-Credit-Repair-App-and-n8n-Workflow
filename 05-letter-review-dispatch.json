@@ -1,0 +1,363 @@
+{
+  "name": "05 - Letter Review, Notarization & Dispatch",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 05 \u2014 Review, Notarize & Dispatch\n\nTriggered when an operator/client approves letters in the app. Affidavit-type documents (e.g. an FTC Identity Theft Affidavit) are routed through **Proof.com** for remote online notarization; the workflow pauses on a Wait node until Proof calls back. Letters are then mailed **Certified Mail with return receipt via Lob** so there is a delivery record that starts the FCRA 30-day clock.",
+        "height": 300,
+        "width": 480,
+        "color": 4
+      },
+      "id": "e7930d4a-4785-4dfd-b799-e0fb8081ffd7",
+      "name": "Note 8f60bee8",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -740,
+        -440
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "credit-repair/letters/approve",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "48e7655b-924d-45cd-befd-5177b0d4d1f1",
+      "name": "Approval Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT dl.letter_id, dl.case_id, dl.bureau, dl.round,\n       dl.letter_body, dl.requires_notarization,\n       c.first_name, c.last_name, c.street, c.city, c.state, c.zip\nFROM dispute_letters dl\nJOIN cases c ON c.case_id = dl.case_id\nWHERE dl.letter_id = ANY($1::int[])\n  AND dl.letter_status = 'pending_review';",
+        "options": {}
+      },
+      "id": "62c2e172-460e-4cfe-b814-34fd19cc3e62",
+      "name": "DB: Get Approved Letters",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        20,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "bf3b6653-fbf4-411b-91e6-0bd4814dd928",
+              "leftValue": "={{ $json.requires_notarization }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f7cbc120-dbe6-4412-9e8a-2d4107d55c3a",
+      "name": "Notarization Required?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.proof.com/v1/transactions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  signer: { first_name: $json.first_name,\n    last_name: $json.last_name },\n  documents: [{ resource: 'dispute_affidavit',\n    requirement: 'notarization' }],\n  external_id: 'letter-' + $json.letter_id,\n  notarization_callback_url:\n    $env.N8N_WEBHOOK_URL + '/webhook/credit-repair/notary-callback'\n}) }}",
+        "options": {}
+      },
+      "id": "09147953-043c-48af-81eb-e93a50cc9e0c",
+      "name": "Proof: Create Notarization",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        500,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "options": {
+          "webhookSuffix": "notary-callback"
+        }
+      },
+      "id": "b24824e1-f016-4aaa-bb68-7113f62d501e",
+      "name": "Wait for Notary Callback",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        740,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "2f6feeb2-2e89-42b2-bc69-b6223285eb6a",
+      "name": "Merge Notarized + Standard",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PDF_SERVICE_URL }}/render",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  template: 'dispute_letter',\n  letter_id: $json.letter_id,\n  body: $json.letter_body,\n  return_address: { name: $json.first_name + ' ' + $json.last_name,\n    street: $json.street, city: $json.city,\n    state: $json.state, zip: $json.zip }\n}) }}",
+        "options": {}
+      },
+      "id": "fe161214-49da-4f0d-9cad-d2ceef48b709",
+      "name": "Render Letter PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.lob.com/v1/letters",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  description: 'Dispute letter ' + $json.letter_id\n    + ' to ' + $json.bureau,\n  to: $json.bureau_address,\n  from: { name: $json.first_name + ' ' + $json.last_name,\n    address_line1: $json.street, address_city: $json.city,\n    address_state: $json.state, address_zip: $json.zip },\n  file: $json.letter_pdf_url,\n  color: false,\n  extra_service: 'certified',\n  use_type: 'operational'\n}) }}",
+        "options": {}
+      },
+      "id": "6b6cde3f-a3c1-49d4-aa0c-85842bcd0690",
+      "name": "Lob: Send Certified Mail",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1460,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE dispute_letters SET\n  letter_status = 'mailed', carrier = 'usps_certified',\n  tracking_number = $2, mailed_at = now(),\n  fcra_response_due = now() + interval '30 days'\nWHERE letter_id = $1;",
+        "options": {}
+      },
+      "id": "d38c1f67-010e-4ab8-868b-7db77432af5d",
+      "name": "DB: Mark Mailed + Tracking",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1700,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "id",
+          "cachedResultName": "07 - Client Notifications"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "event_type": "letters_mailed",
+            "case_id": "={{ $json.case_id }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "5ad20980-7971-4982-9fd7-b87a7aa4114f",
+      "name": "Trigger Mailed Notification",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1940,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: \"dispatched\", mailed: $runIndex + 1 }) }}",
+        "options": {}
+      },
+      "id": "a65a780b-d756-4515-ac3e-5c7b748f2a41",
+      "name": "Respond: Dispatched",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2180,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Approval Webhook": {
+      "main": [
+        [
+          {
+            "node": "DB: Get Approved Letters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB: Get Approved Letters": {
+      "main": [
+        [
+          {
+            "node": "Notarization Required?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notarization Required?": {
+      "main": [
+        [
+          {
+            "node": "Proof: Create Notarization",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge Notarized + Standard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Proof: Create Notarization": {
+      "main": [
+        [
+          {
+            "node": "Wait for Notary Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Notary Callback": {
+      "main": [
+        [
+          {
+            "node": "Merge Notarized + Standard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Notarized + Standard": {
+      "main": [
+        [
+          {
+            "node": "Render Letter PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render Letter PDF": {
+      "main": [
+        [
+          {
+            "node": "Lob: Send Certified Mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lob: Send Certified Mail": {
+      "main": [
+        [
+          {
+            "node": "DB: Mark Mailed + Tracking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB: Mark Mailed + Tracking": {
+      "main": [
+        [
+          {
+            "node": "Trigger Mailed Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Mailed Notification": {
+      "main": [
+        [
+          {
+            "node": "Respond: Dispatched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "pinData": {},
+  "versionId": "2bd418f0-562e-41f8-b37b-6bce4ecfeb74",
+  "tags": []
+}

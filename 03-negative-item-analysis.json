@@ -1,0 +1,245 @@
+{
+  "name": "03 - Negative Item Analysis",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 03 \u2014 Negative Item Analysis\n\nEach negative item is examined by Claude against the FCRA. The model classifies the **dispute basis** (inaccurate, incomplete, unverifiable, obsolete, not-mine, identity-theft) and a **confidence score**.\n\n**Frivolous-dispute guard:** items the model judges accurate and verifiable are marked `do_not_dispute`. We dispute genuine inaccuracies \u2014 never accurate data.",
+        "height": 300,
+        "width": 470,
+        "color": 4
+      },
+      "id": "3206a995-add3-4113-b04d-050a9ac8015b",
+      "name": "Note 57260e82",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -680,
+        -420
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "beea0614-ba2c-43ff-8f15-6910c4793804",
+      "name": "When Called by Orchestrator",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT item_id, case_id, bureau, creditor, account_number_masked,\n       item_type, reported_status, balance, date_opened,\n       date_reported, raw\nFROM negative_items\nWHERE case_id = $1 AND analysis_status = 'pending';",
+        "options": {}
+      },
+      "id": "276b14ab-c68e-4669-9dae-035d4ba7f648",
+      "name": "DB: Get Pending Items",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        60,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "id": "5bd08892-895d-4856-b813-d4ebd5974165",
+      "name": "Loop Over Items",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the Anthropic request for one negative item.\nconst it = $input.first().json;\nconst system = [\n  'You are an FCRA compliance analyst for a licensed credit-repair',\n  'service. Given one negative credit item, identify whether there is',\n  'a GOOD-FAITH, factual basis to dispute it under the Fair Credit',\n  'Reporting Act. Never invent inaccuracies. If the item appears',\n  'accurate and verifiable, say so and recommend do_not_dispute.',\n  'Return ONLY JSON.'\n].join(' ');\nconst user = [\n  'Negative item:', JSON.stringify(it, null, 2),\n  '',\n  'Return JSON: {\"dispute_basis\": one of',\n  '[\"inaccurate\",\"incomplete\",\"unverifiable\",\"obsolete\",',\n  '\"not_mine\",\"identity_theft\",\"none\"],',\n  '\"fcra_sections\": [strings like \"1681i\",\"1681e(b)\",\"1681s-2\"],',\n  '\"rationale\": string, \"confidence\": 0-1,',\n  '\"recommendation\": \"dispute\" or \"do_not_dispute\"}'\n].join('\\n');\nreturn [{ json: { ...it, anthropic_request: {\n  model: 'claude-sonnet-4-6', max_tokens: 1024,\n  system, messages: [{ role: 'user', content: user }] } } }];"
+      },
+      "id": "dee8f36a-1d03-40e4-9fc3-f1db6683d725",
+      "name": "Build Analysis Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.anthropic_request) }}",
+        "options": {}
+      },
+      "id": "6e6b0d83-069e-4ffc-9ca1-f6c6df26d644",
+      "name": "Claude: Analyze Item",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract the JSON verdict from Claude's response.\nconst resp = $input.first().json;\nconst text = (resp.content && resp.content[0] && resp.content[0].text) || '{}';\nlet verdict;\ntry { verdict = JSON.parse(text.match(/\\{[\\s\\S]*\\}/)[0]); }\ncatch (e) { verdict = { dispute_basis: 'none', confidence: 0,\n  recommendation: 'do_not_dispute', rationale: 'parse_error' }; }\nconst it = $('Build Analysis Prompt').first().json;\nreturn [{ json: { item_id: it.item_id, case_id: it.case_id,\n  bureau: it.bureau, ...verdict,\n  analysis_status: verdict.recommendation === 'dispute'\n    ? 'disputable' : 'do_not_dispute' } }];"
+      },
+      "id": "cd6e7996-680e-437f-98c6-6af6702747fb",
+      "name": "Parse Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE negative_items SET\n  dispute_basis = $2, fcra_sections = $3, rationale = $4,\n  confidence = $5, analysis_status = $6, analyzed_at = now()\nWHERE item_id = $1;",
+        "options": {}
+      },
+      "id": "88c8e261-7150-4b48-bf35-4da7c654cb1f",
+      "name": "DB: Save Item Analysis",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// After the loop: summarize disputable items grouped by bureau.\nconst all = $('DB: Save Item Analysis').all().map(i => i.json);\nconst disputable = all.filter(i => i.analysis_status === 'disputable');\nconst byBureau = {};\nfor (const it of disputable) {\n  (byBureau[it.bureau] = byBureau[it.bureau] || []).push(it);\n}\nreturn [{ json: {\n  case_id: all.length ? all[0].case_id : null,\n  total_items: all.length,\n  disputable_count: disputable.length,\n  do_not_dispute_count: all.length - disputable.length,\n  bureaus: Object.keys(byBureau),\n  strategy_by_bureau: byBureau,\n  stage: 'analyzed' } }];"
+      },
+      "id": "4c9c6c97-f889-41b1-be3c-b9730d2edb16",
+      "name": "Compile Dispute Strategy",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        540,
+        240
+      ]
+    }
+  ],
+  "connections": {
+    "When Called by Orchestrator": {
+      "main": [
+        [
+          {
+            "node": "DB: Get Pending Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB: Get Pending Items": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Compile Dispute Strategy",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Analysis Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Analysis Prompt": {
+      "main": [
+        [
+          {
+            "node": "Claude: Analyze Item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude: Analyze Item": {
+      "main": [
+        [
+          {
+            "node": "Parse Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Analysis": {
+      "main": [
+        [
+          {
+            "node": "DB: Save Item Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB: Save Item Analysis": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "pinData": {},
+  "versionId": "f5fa2be2-4a75-4823-b6f3-1d693105098f",
+  "tags": []
+}

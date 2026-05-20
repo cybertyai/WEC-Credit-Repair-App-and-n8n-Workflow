@@ -1,0 +1,504 @@
+{
+  "name": "02 - Credit Report Ingestion",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 02 \u2014 Credit Report Ingestion (pluggable)\n\nOne workflow, three interchangeable data-source adapters. The `credit_data_source` field on the case decides which path runs:\n\n- **crs_api** \u2014 CRS Credit API, a licensed reseller for all three bureaus. Consumer authenticates directly; no passwords stored. **Recommended.**\n- **pdf_upload** \u2014 the client uploads their own report; we parse it.\n- **identityiq** \u2014 adapter for an IdentityIQ session.\n\nAll three normalize into one standard schema downstream.",
+        "height": 320,
+        "width": 480,
+        "color": 4
+      },
+      "id": "888534d3-419b-4972-8057-61d3e3f48685",
+      "name": "Note 89a6a430",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -760,
+        -460
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Legal note on the IdentityIQ adapter\n\nStoring a customer's IdentityIQ password and logging in on their behalf violates IdentityIQ's Terms of Service and creates real security liability. This adapter calls an **external RPA / browser-automation service** that the *customer* drives \u2014 it should never hold raw third-party passwords in n8n. Prefer `crs_api` or `pdf_upload`. Keep this path disabled until reviewed by counsel.",
+        "height": 240,
+        "width": 460,
+        "color": 3
+      },
+      "id": "dd937a67-1b9b-426d-bb3b-5001899148d3",
+      "name": "Note 7e7a5372",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -200,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "d4794650-6d97-403a-8b4b-bab4a5d7038b",
+      "name": "When Called by Orchestrator",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT case_id, first_name, last_name, date_of_birth, ssn_last4,\n       street, city, state, zip, credit_data_source\nFROM cases WHERE case_id = $1;",
+        "options": {}
+      },
+      "id": "039fd663-399d-4b34-a113-c95a2fa53781",
+      "name": "DB: Load Case",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        20,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "70c45f3e-d68f-4134-9eff-23c56d0fa8e9",
+                    "leftValue": "={{ $json.credit_data_source }}",
+                    "rightValue": "crs_api",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "CRS Credit API"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "2c16e7c9-a2ce-4f46-9cd6-11bb1b2784f5",
+                    "leftValue": "={{ $json.credit_data_source }}",
+                    "rightValue": "pdf_upload",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "PDF Upload"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "99d42f9c-bf02-4818-aa0f-ef2145a05c11",
+                    "leftValue": "={{ $json.credit_data_source }}",
+                    "rightValue": "identityiq",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "IdentityIQ"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "ea2dbad6-7a25-4f0e-a43a-7f068c90f91e",
+      "name": "Route by Data Source",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.crscreditapi.com/v1/consumer-credit/reports",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  permissible_purpose: 'consumer_initiated',\n  bureaus: ['experian','transunion','equifax'],\n  consumer: {\n    first_name: $json.first_name, last_name: $json.last_name,\n    dob: $json.date_of_birth, ssn_last4: $json.ssn_last4,\n    address: { street: $json.street, city: $json.city,\n      state: $json.state, zip: $json.zip } },\n  product: 'credit_report_and_score'\n}) }}",
+        "options": {}
+      },
+      "id": "f4d603a7-9e12-4a7c-9ea6-3ae98a373780",
+      "name": "CRS: Pull 3-Bureau Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        -260
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Map the CRS bureau payload into raw tradelines.\nconst r = $input.first().json;\nconst negatives = [];\nfor (const bureau of (r.bureau_reports || [])) {\n  for (const tl of (bureau.tradelines || [])) {\n    if (tl.is_negative || tl.derogatory) {\n      negatives.push({\n        bureau: bureau.bureau,\n        creditor: tl.creditor_name,\n        account_number_masked: tl.account_number_masked,\n        item_type: tl.account_type,\n        status: tl.payment_status,\n        balance: tl.balance,\n        date_opened: tl.date_opened,\n        date_reported: tl.date_reported,\n        raw: tl });\n    }\n  }\n}\nreturn [{ json: { source: 'crs_api', negative_items: negatives } }];"
+      },
+      "id": "c2baaeec-81ec-4a80-8751-03a60a4c726e",
+      "name": "Map CRS Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        -260
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.uploaded_report_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "81193882-f530-45db-a0ad-e317df2007f6",
+      "name": "Download Uploaded Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "id": "a7652169-339c-48fe-bd3f-9d504ca0cf7c",
+      "name": "Extract Text from PDF",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Heuristic parse of an uploaded credit-report PDF.\n// Replace with a tuned parser per report vendor format.\nconst text = $input.first().json.text || '';\nconst negatives = [];\nconst lines = text.split(/\\n/);\nconst flags = /charge.?off|collection|late|delinquent|repossession|settled|past due|derogatory/i;\nfor (const line of lines) {\n  if (flags.test(line)) {\n    negatives.push({ bureau: 'unknown', creditor: line.trim().slice(0,80),\n      item_type: 'parsed_from_pdf', status: 'review_required',\n      raw: { line } });\n  }\n}\nreturn [{ json: { source: 'pdf_upload', negative_items: negatives,\n  _needs_human_confirmation: true } }];"
+      },
+      "id": "1b0a030a-2a73-49c9-bf3f-93a9ffadb9ff",
+      "name": "Parse Report Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.RPA_SERVICE_URL }}/identityiq/fetch-report",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  case_id: $json.case_id,\n  consumer_session_token: $json.identityiq_session_token,\n  note: 'Customer-driven session token only \u2014 no stored passwords.'\n}) }}",
+        "options": {}
+      },
+      "id": "2453f053-cc55-45eb-9f49-abbf9cb645f1",
+      "name": "IdentityIQ RPA Adapter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $input.first().json;\nreturn [{ json: { source: 'identityiq',\n  negative_items: r.negative_items || [],\n  _needs_human_confirmation: true } }];"
+      },
+      "id": "abddd933-7af1-4497-8a89-ebd3df5f13ea",
+      "name": "Map IdentityIQ Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collapse whichever adapter ran into one standard shape.\nconst inp = $input.first().json;\nconst caseId = $('DB: Load Case').first().json.case_id;\nconst items = (inp.negative_items || []).map((it, i) => ({\n  case_id: caseId,\n  item_index: i,\n  bureau: (it.bureau || 'unknown').toLowerCase(),\n  creditor: it.creditor || 'Unknown',\n  account_number_masked: it.account_number_masked || null,\n  item_type: it.item_type || 'unknown',\n  reported_status: it.status || null,\n  balance: it.balance || null,\n  date_opened: it.date_opened || null,\n  date_reported: it.date_reported || null,\n  raw: it.raw || it,\n  analysis_status: 'pending' }));\nreturn [{ json: { case_id: caseId, source: inp.source,\n  pulled_at: new Date().toISOString(),\n  item_count: items.length, negative_items: items } }];"
+      },
+      "id": "92e5d645-e666-4016-9e2a-6f817f2dabc1",
+      "name": "Normalize to Standard Schema",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO credit_reports (case_id, source, pulled_at, item_count)\nVALUES ($1, $2, now(), $3)\nRETURNING report_id;\n-- then bulk-insert $json.negative_items into negative_items",
+        "options": {}
+      },
+      "id": "15162509-c29e-466d-9601-f0f785ad7e09",
+      "name": "DB: Store Report + Items",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8b322245-4e30-4e34-b522-9f66739e6533",
+              "name": "case_id",
+              "value": "={{ $('Normalize to Standard Schema').first().json.case_id }}",
+              "type": "string"
+            },
+            {
+              "id": "37da16e7-95dc-4f51-9840-2ce38e4244c0",
+              "name": "item_count",
+              "value": "={{ $('Normalize to Standard Schema').first().json.item_count }}",
+              "type": "number"
+            },
+            {
+              "id": "8b321437-0985-43ac-b21a-5e5888f6e078",
+              "name": "stage",
+              "value": "ingested",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "55fc0a2e-2c81-461a-a2b4-7eecb30945e5",
+      "name": "Return Ingestion Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1660,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Called by Orchestrator": {
+      "main": [
+        [
+          {
+            "node": "DB: Load Case",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB: Load Case": {
+      "main": [
+        [
+          {
+            "node": "Route by Data Source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Data Source": {
+      "main": [
+        [
+          {
+            "node": "CRS: Pull 3-Bureau Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Download Uploaded Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IdentityIQ RPA Adapter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRS: Pull 3-Bureau Report": {
+      "main": [
+        [
+          {
+            "node": "Map CRS Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map CRS Response": {
+      "main": [
+        [
+          {
+            "node": "Normalize to Standard Schema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Uploaded Report": {
+      "main": [
+        [
+          {
+            "node": "Extract Text from PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Text from PDF": {
+      "main": [
+        [
+          {
+            "node": "Parse Report Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Report Text": {
+      "main": [
+        [
+          {
+            "node": "Normalize to Standard Schema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IdentityIQ RPA Adapter": {
+      "main": [
+        [
+          {
+            "node": "Map IdentityIQ Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map IdentityIQ Response": {
+      "main": [
+        [
+          {
+            "node": "Normalize to Standard Schema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize to Standard Schema": {
+      "main": [
+        [
+          {
+            "node": "DB: Store Report + Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB: Store Report + Items": {
+      "main": [
+        [
+          {
+            "node": "Return Ingestion Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "pinData": {},
+  "versionId": "f876ec19-6aea-431f-831e-517926e41f45",
+  "tags": []
+}

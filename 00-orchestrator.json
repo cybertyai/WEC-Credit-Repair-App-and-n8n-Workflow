@@ -1,0 +1,387 @@
+{
+  "name": "00 - Credit Repair Orchestrator",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 00 \u2014 Pipeline Orchestrator\n\nThe conductor. Runs hourly, picks up cases whose 3-day cancellation window has **closed** and that have not yet started, and runs the automated pipeline:\n\ningest -> analyze -> draft letters -> notify for review.\n\nIt deliberately **stops at letter review**. Dispatch (05) only fires after a human approves. Tracking (06) runs on its own daily schedule.\n\n**After importing all workflows, open each Execute Workflow node and select the matching workflow** \u2014 IDs cannot be hard-coded across instances.",
+        "height": 360,
+        "width": 500,
+        "color": 4
+      },
+      "id": "86222eb3-0347-4594-997f-0ec0ebfffa5e",
+      "name": "Note c48d0c65",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -780,
+        -460
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "6b808484-7936-4f5a-b7e8-3f78282b334f",
+      "name": "Hourly Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT case_id FROM cases\nWHERE case_status = 'cooling_off'\n  AND cancellation_deadline < now()\n  AND cancelled_at IS NULL\nORDER BY created_at;",
+        "options": {}
+      },
+      "id": "1d896900-2665-4292-a66b-d6fe090a7709",
+      "name": "DB: Cases Ready to Start",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        20,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a8c0b574-0875-4a77-9487-d8f4ae14f71b",
+              "leftValue": "={{ $json.case_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "46cbee9d-8083-49f2-817e-b619d7d6e7a3",
+      "name": "Any Ready Cases?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "6365f7a1-fb1e-47ea-8825-ad886dfc5b6b",
+      "name": "Loop Over Cases",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE cases SET case_status = 'in_progress',\n  current_round = 1, started_at = now()\nWHERE case_id = $1;",
+        "options": {}
+      },
+      "id": "8083f934-4f81-40db-b000-9e43b8bc6319",
+      "name": "DB: Mark Case Started",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        740,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "id",
+          "cachedResultName": "02 - Credit Report Ingestion"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "case_id": "={{ $json.case_id }}"
+          }
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "b848f908-e417-468a-97ae-e0f97d66f6ce",
+      "name": "Ingest Credit Report",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        980,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "id",
+          "cachedResultName": "03 - Negative Item Analysis"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "case_id": "={{ $('Loop Over Cases').item.json.case_id }}"
+          }
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "1620d161-e33e-49f3-83c0-132e28cc26ec",
+      "name": "Analyze Negative Items",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1220,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "id",
+          "cachedResultName": "04 - Dispute Letter Generation"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "case_id": "={{ $('Loop Over Cases').item.json.case_id }}"
+          }
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "e8c6da2e-6c07-4d33-a7c8-db3979d66653",
+      "name": "Generate Dispute Letters",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1460,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE cases SET case_status = 'letters_pending_review'\nWHERE case_id = $1;",
+        "options": {}
+      },
+      "id": "59cb8752-4c49-4b8c-aa44-897aef365f99",
+      "name": "DB: Set Pending Review",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1700,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "",
+          "mode": "id",
+          "cachedResultName": "07 - Client Notifications"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "event_type": "round_results",
+            "case_id": "={{ $('Loop Over Cases').item.json.case_id }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "d1b3cd8c-c125-459c-87c1-2aace5319f15",
+      "name": "Notify: Letters Ready",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1940,
+        80
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "96406037-3343-4b4e-a8bf-20b437d4a240",
+      "name": "Done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        740,
+        -140
+      ]
+    }
+  ],
+  "connections": {
+    "Hourly Schedule": {
+      "main": [
+        [
+          {
+            "node": "DB: Cases Ready to Start",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB: Cases Ready to Start": {
+      "main": [
+        [
+          {
+            "node": "Any Ready Cases?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Ready Cases?": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Cases",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Cases": {
+      "main": [
+        [],
+        [
+          {
+            "node": "DB: Mark Case Started",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB: Mark Case Started": {
+      "main": [
+        [
+          {
+            "node": "Ingest Credit Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ingest Credit Report": {
+      "main": [
+        [
+          {
+            "node": "Analyze Negative Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Negative Items": {
+      "main": [
+        [
+          {
+            "node": "Generate Dispute Letters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Dispute Letters": {
+      "main": [
+        [
+          {
+            "node": "DB: Set Pending Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB: Set Pending Review": {
+      "main": [
+        [
+          {
+            "node": "Notify: Letters Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify: Letters Ready": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Cases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "pinData": {},
+  "versionId": "e2073a15-cec9-465f-b5fb-17a2c83398eb",
+  "tags": []
+}
