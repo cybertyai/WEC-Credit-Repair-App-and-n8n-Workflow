@@ -1,0 +1,7 @@
+{
+  "name": "wec-credit-repair",
+  "private": true,
+  "dependencies": {
+    "next": "15.3.2"
+  }
+}

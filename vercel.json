@@ -1,14 +1,6 @@
 {
-  "builds": [
-    {
-      "src": "webapp/package.json",
-      "use": "@vercel/next"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "webapp/$1"
-    }
-  ]
+  "framework": "nextjs",
+  "buildCommand": "npm --prefix webapp install && npm --prefix webapp run build",
+  "outputDirectory": "webapp/.next",
+  "installCommand": "echo 'deps handled in build'"
 }
