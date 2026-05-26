@@ -1,0 +1,19 @@
+{
+  "id": "Ntz9lbCFx87z2BQB",
+  "name": "06 - Response Tracking & Escalation",
+  "active": true,
+  "description": "Daily job (9am) that finds letters past the FCRA 30-day window, re-ingests the updated credit report, evaluates outcomes via Claude, and either closes resolved cases or escalates to the next dispute round.",
+  "nodes": [
+    {"id":"4f9d1728","name":"Daily Schedule","type":"n8n-nodes-base.scheduleTrigger","typeVersion":1.2,"position":[0,272],"parameters":{"rule":{"interval":[{"triggerAtHour":9}]}}},
+    {"id":"f539bec8","name":"DB: Letters Past FCRA Window","type":"n8n-nodes-base.postgres","typeVersion":2.5,"position":[224,272],"parameters":{"operation":"executeQuery","query":"SELECT DISTINCT case_id\nFROM dispute_letters\nWHERE letter_status = 'mailed'\n  AND fcra_response_due < now();","options":{}}},
+    {"id":"530cbc4b","name":"Loop Over Cases","type":"n8n-nodes-base.splitInBatches","typeVersion":3,"position":[448,272],"parameters":{"options":{}}},
+    {"id":"40d5a69a","name":"Done","type":"n8n-nodes-base.noOp","typeVersion":1,"position":[672,0]},
+    {"id":"105a8c43","name":"Re-Ingest Updated Report","type":"n8n-nodes-base.executeWorkflow","typeVersion":1.2,"position":[672,192],"parameters":{"workflowId":{"__rl":true,"value":"N6l5jaGhBDVMWJTf","mode":"id"},"options":{"waitForSubWorkflow":true}}}
+  ],
+  "connections": {
+    "Daily Schedule":{"main":[[{"node":"DB: Letters Past FCRA Window","type":"main","index":0}]]},
+    "DB: Letters Past FCRA Window":{"main":[[{"node":"Loop Over Cases","type":"main","index":0}]]},
+    "Loop Over Cases":{"main":[[{"node":"Done","type":"main","index":0}],[{"node":"Re-Ingest Updated Report","type":"main","index":0}]]}
+  },
+  "settings": {"executionOrder":"v1"}
+}

@@ -1,0 +1,36 @@
+{
+  "id": "0XvE9CZehYxEeYdG",
+  "name": "00 - Credit Repair Orchestrator",
+  "active": true,
+  "description": "Hourly orchestrator that picks up cases past their 3-day cancellation window, runs the full pipeline (ingest → analyze → generate letters), marks pending review, and notifies the client.",
+  "nodes": [
+    {"id":"fa15e912-cd2b-4a33-9fcc-e8f344f7365e","name":"Hourly Schedule","type":"n8n-nodes-base.scheduleTrigger","typeVersion":1.2,"position":[0,320],"parameters":{"rule":{"interval":[{"field":"hours"}]}}},
+    {"id":"5271654e-b23e-4e30-bf4c-79b7ca0f6049","name":"DB: Cases Ready to Start","type":"n8n-nodes-base.postgres","typeVersion":2.5,"position":[224,320],"parameters":{"operation":"executeQuery","query":"SELECT case_id FROM cases\nWHERE case_status = 'cooling_off'\n  AND cancellation_deadline < now()\n  AND cancelled_at IS NULL\nORDER BY created_at;","options":{}}},
+    {"id":"5c745898-d03f-43f9-965d-9d21eb9160d3","name":"Any Ready Cases?","type":"n8n-nodes-base.if","typeVersion":2.2,"position":[448,320],"parameters":{"conditions":{"options":{"caseSensitive":true,"leftValue":"","typeValidation":"loose","version":2},"conditions":[{"leftValue":"={{ $json.case_id }}","rightValue":"","operator":{"type":"string","operation":"exists","singleValue":true}}],"combinator":"and"},"options":{}}},
+    {"id":"1e531645-1d83-4d20-b380-2a3d21ab8509","name":"Done","type":"n8n-nodes-base.noOp","typeVersion":1,"position":[896,0]},
+    {"id":"c9fd4232-561e-4c01-88bc-9ef8c63b2f53","name":"DB: Mark Case Started","type":"n8n-nodes-base.postgres","typeVersion":2.5,"position":[896,192],"parameters":{"operation":"executeQuery","query":"UPDATE cases SET case_status = 'in_progress',\n  current_round = 1, started_at = now()\nWHERE case_id = '{{ $json.case_id }}'\nRETURNING case_id;","options":{}}},
+    {"id":"bc57f424-78cb-4244-a6b3-1b3edf8848f7","name":"Ingest Credit Report","type":"n8n-nodes-base.executeWorkflow","typeVersion":1.2,"position":[1120,192],"parameters":{"workflowId":{"__rl":true,"value":"N6l5jaGhBDVMWJTf","mode":"id"},"options":{"waitForSubWorkflow":true}}},
+    {"id":"3647843b-950c-43b6-a8d4-c2fbafbf4504","name":"Analyze Negative Items","type":"n8n-nodes-base.executeWorkflow","typeVersion":1.2,"position":[1344,192],"parameters":{"workflowId":{"__rl":true,"value":"GlrxZTD3vMC4sqh1","mode":"id"},"options":{"waitForSubWorkflow":true}}},
+    {"id":"65eab952-19b1-4608-a90d-a3f0dd2a9645","name":"Generate Dispute Letters","type":"n8n-nodes-base.executeWorkflow","typeVersion":1.2,"position":[1568,192],"parameters":{"workflowId":{"__rl":true,"value":"8Z981wGZHMy72uGc","mode":"id"},"options":{"waitForSubWorkflow":true}}},
+    {"id":"e7a9f6d9-a372-4d75-93d2-beeb9b3960ce","name":"Restore Case ID","type":"n8n-nodes-base.code","typeVersion":2,"position":[1792,192],"parameters":{"jsCode":"const inp = $input.first().json;\nconst loopData = $('Loop Over Cases').first().json;\nreturn [{ json: { ...inp, case_id: inp.case_id || loopData.case_id } }];"}},
+    {"id":"c76d3747-bef9-46dd-83b7-bc0bf45fc2fe","name":"DB: Set Pending Review","type":"n8n-nodes-base.postgres","typeVersion":2.5,"position":[2016,192],"parameters":{"operation":"executeQuery","query":"UPDATE cases SET case_status = 'letters_pending_review'\nWHERE case_id = '{{ $json.case_id }}'\nRETURNING case_id;","options":{}}},
+    {"id":"009d9bde-9a4d-4215-9436-d96f63f5bfec","name":"Prepare Notification","type":"n8n-nodes-base.code","typeVersion":2,"position":[2240,192],"parameters":{"jsCode":"const loopData = $('Loop Over Cases').first().json;\nconst inp = $input.first().json;\nreturn [{ json: { case_id: inp.case_id || loopData.case_id, event_type: 'letters_mailed' } }];"}},
+    {"id":"abd1638f-6986-4c27-9d87-6315414b8c88","name":"Notify: Letters Ready","type":"n8n-nodes-base.executeWorkflow","typeVersion":1.2,"position":[2464,240],"parameters":{"workflowId":{"__rl":true,"value":"jy0sDJNfwu0sFx4b","mode":"id"},"options":{}}},
+    {"id":"95da70c2-afee-43d8-a2c8-c589a910aaff","name":"Loop Over Cases","type":"n8n-nodes-base.splitInBatches","typeVersion":3,"position":[672,192],"parameters":{"batchSize":1,"options":{}}}
+  ],
+  "connections": {
+    "Hourly Schedule":{"main":[[{"node":"DB: Cases Ready to Start","type":"main","index":0}]]},
+    "DB: Cases Ready to Start":{"main":[[{"node":"Any Ready Cases?","type":"main","index":0}]]},
+    "Any Ready Cases?":{"main":[[{"node":"Loop Over Cases","type":"main","index":0}],[{"node":"Done","type":"main","index":0}]]},
+    "DB: Mark Case Started":{"main":[[{"node":"Ingest Credit Report","type":"main","index":0}]]},
+    "Ingest Credit Report":{"main":[[{"node":"Analyze Negative Items","type":"main","index":0}]]},
+    "Analyze Negative Items":{"main":[[{"node":"Generate Dispute Letters","type":"main","index":0}]]},
+    "Generate Dispute Letters":{"main":[[{"node":"Restore Case ID","type":"main","index":0}]]},
+    "Restore Case ID":{"main":[[{"node":"DB: Set Pending Review","type":"main","index":0}]]},
+    "DB: Set Pending Review":{"main":[[{"node":"Prepare Notification","type":"main","index":0}]]},
+    "Prepare Notification":{"main":[[{"node":"Notify: Letters Ready","type":"main","index":0}]]},
+    "Notify: Letters Ready":{"main":[[{"node":"Loop Over Cases","type":"main","index":0}]]},
+    "Loop Over Cases":{"main":[[{"node":"Done","type":"main","index":0}],[{"node":"DB: Mark Case Started","type":"main","index":0}]]}
+  },
+  "settings": {"executionOrder":"v1"}
+}

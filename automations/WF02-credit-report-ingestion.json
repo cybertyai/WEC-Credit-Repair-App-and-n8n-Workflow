@@ -1,0 +1,18 @@
+{
+  "id": "N6l5jaGhBDVMWJTf",
+  "name": "02 - Credit Report Ingestion",
+  "active": true,
+  "description": "Credit report ingestion with CRS API, PDF upload, and IdentityIQ adapters. IdentityIQ path uses a test mock with 3 disputable items — replace with real RPA call when RPA_SERVICE_URL is configured.",
+  "nodes": [
+    {"id":"85f44499","name":"When Called by Orchestrator","type":"n8n-nodes-base.executeWorkflowTrigger","typeVersion":1.1,"position":[0,192],"parameters":{"inputSource":"passthrough"}},
+    {"id":"c24ea8d6","name":"DB: Load Case","type":"n8n-nodes-base.postgres","typeVersion":2.5,"position":[224,192],"parameters":{"operation":"executeQuery","query":"SELECT case_id, first_name, last_name, date_of_birth, ssn_last4,\n       street, city, state, zip, credit_data_source\nFROM cases WHERE case_id = '{{ $json.case_id }}';","options":{}}},
+    {"id":"20baa264","name":"Route by Data Source","type":"n8n-nodes-base.switch","typeVersion":3.2,"position":[448,176],"parameters":{"rules":{"values":[{"conditions":{"options":{"caseSensitive":true,"leftValue":"","typeValidation":"loose","version":2},"conditions":[{"leftValue":"={{ $json.credit_data_source }}","rightValue":"crs_api","operator":{"type":"string","operation":"equals"}}],"combinator":"and"},"renameOutput":true,"outputKey":"CRS Credit API"},{"conditions":{"options":{"caseSensitive":true,"leftValue":"","typeValidation":"loose","version":2},"conditions":[{"leftValue":"={{ $json.credit_data_source }}","rightValue":"pdf_upload","operator":{"type":"string","operation":"equals"}}],"combinator":"and"},"renameOutput":true,"outputKey":"PDF Upload"},{"conditions":{"options":{"caseSensitive":true,"leftValue":"","typeValidation":"loose","version":2},"conditions":[{"leftValue":"={{ $json.credit_data_source }}","rightValue":"identityiq","operator":{"type":"string","operation":"equals"}}],"combinator":"and"},"renameOutput":true,"outputKey":"IdentityIQ"}]},"options":{"fallbackOutput":"extra"}}},
+    {"id":"f30b964e","name":"IdentityIQ RPA Adapter","type":"n8n-nodes-base.code","typeVersion":2,"position":[896,384],"parameters":{"jsCode":"// TEST MOCK — replace with real RPA call when RPA_SERVICE_URL is configured\nreturn [{ json: { negative_items: [\n  { bureau: 'equifax', creditor: 'First National Bank',\n    account_number_masked: 'xxxx-xxxx-xxxx-1122', item_type: 'credit_card',\n    status: 'charge_off', balance: 750.00,\n    date_opened: '2015-04-10', date_reported: '2018-02-20',\n    raw: { note: 'Item past 7-year reporting window — obsolete under FCRA 1681c' } },\n  { bureau: 'transunion', creditor: 'Allied Collections LLC',\n    account_number_masked: 'xxxx-9901', item_type: 'collection',\n    status: 'collection', balance: 620.00,\n    date_opened: '2022-06-15', date_reported: '2025-08-10',\n    raw: { note: 'Balance paid in full Jan 2024, still shows open collection' } },\n  { bureau: 'experian', creditor: 'Cavalry Portfolio Services',\n    account_number_masked: 'xxxx-4407', item_type: 'collection',\n    status: 'collection', balance: 310.00,\n    date_opened: '2023-03-22', date_reported: '2025-12-05',\n    raw: { note: 'Account holder name mismatch — possible mixed file' } }\n] } }];"}}
+  ],
+  "connections": {
+    "When Called by Orchestrator":{"main":[[{"node":"DB: Load Case","type":"main","index":0}]]},
+    "DB: Load Case":{"main":[[{"node":"Route by Data Source","type":"main","index":0}]]},
+    "IdentityIQ RPA Adapter":{"main":[[{"node":"Map IdentityIQ Response","type":"main","index":0}]]}
+  },
+  "settings": {"executionOrder":"v1"}
+}

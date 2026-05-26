@@ -1,0 +1,17 @@
+{
+  "id": "7hcmpz38wrbNTcUg",
+  "name": "05 - Letter Review, Notarization & Dispatch",
+  "active": true,
+  "description": "Webhook-triggered letter dispatch: extracts approved letter IDs, optionally routes through Proof.com notarization, renders PDF, mails via Lob certified, marks mailed in DB, notifies client. Webhook: POST /webhook/credit-repair/letters/approve",
+  "nodes": [
+    {"id":"4010ee07","name":"Approval Webhook","type":"n8n-nodes-base.webhook","typeVersion":2,"position":[0,80],"parameters":{"httpMethod":"POST","path":"credit-repair/letters/approve","responseMode":"responseNode","options":{}},"webhookId":"3109e7bd-933d-416c-a95c-df1b2ac0b7fa"},
+    {"id":"9e2cdfbf","name":"Extract Letter IDs","type":"n8n-nodes-base.code","typeVersion":2,"position":[224,80],"parameters":{"jsCode":"const d = $json.body || $json;\nconst ids = Array.isArray(d.letter_ids) ? d.letter_ids.map(Number).filter(Boolean) : [];\nreturn [{ json: { letter_ids: ids, letter_ids_str: ids.join(',') || '0' } }];"}},
+    {"id":"00c5c287","name":"DB: Get Approved Letters","type":"n8n-nodes-base.postgres","typeVersion":2.5,"position":[448,80],"parameters":{"operation":"executeQuery","query":"SELECT dl.letter_id, dl.case_id, dl.bureau, dl.round, dl.letter_body, dl.requires_notarization,\n       c.first_name, c.last_name, c.street, c.city, c.state, c.zip\nFROM dispute_letters dl\nJOIN cases c ON c.case_id = dl.case_id\nWHERE dl.letter_id = ANY(ARRAY[{{ $json.letter_ids_str }}]::int[])\n  AND dl.letter_status = 'pending_review';","options":{}}},
+    {"id":"376b3ccf","name":"Respond: Dispatched","type":"n8n-nodes-base.respondToWebhook","typeVersion":1.1,"position":[2688,80],"parameters":{"respondWith":"json","responseBody":"={{ JSON.stringify({ status: \"dispatched\", mailed: $runIndex + 1 }) }}","options":{}}}
+  ],
+  "connections": {
+    "Approval Webhook":{"main":[[{"node":"Extract Letter IDs","type":"main","index":0}]]},
+    "Extract Letter IDs":{"main":[[{"node":"DB: Get Approved Letters","type":"main","index":0}]]}
+  },
+  "settings": {"executionOrder":"v1"}
+}
