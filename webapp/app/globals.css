@@ -1,3 +1,59 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; }
+
+  html, body {
+    @apply bg-brand-navy text-white;
+    font-family: Inter, system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  input, select, textarea {
+    @apply bg-surface-2 border border-white/10 text-white rounded-xl px-3 py-2.5 text-sm w-full
+           focus:outline-none focus:ring-2 focus:ring-brand-gold/50 focus:border-brand-gold/50
+           placeholder:text-slate-500 transition-all;
+  }
+
+  select option { @apply bg-surface-2; }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface-1 border border-white/[0.06] rounded-2xl;
+  }
+
+  .btn-gold {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold
+           bg-gold-gradient text-brand-navy transition-all duration-150
+           hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-brand-gold/50;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium
+           text-slate-400 border border-white/[0.08] transition-all duration-150
+           hover:text-white hover:border-white/20 hover:bg-white/[0.05]
+           focus:outline-none focus:ring-2 focus:ring-white/20;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold;
+  }
+
+  .badge-green  { @apply badge bg-status-resolved/15 text-status-resolved; }
+  .badge-amber  { @apply badge bg-status-pending/15 text-status-pending; }
+  .badge-blue   { @apply badge bg-status-dispute/15 text-status-dispute; }
+  .badge-red    { @apply badge bg-status-cancelled/15 text-status-cancelled; }
+  .badge-purple { @apply badge bg-status-mailed/15 text-status-mailed; }
+  .badge-gold   { @apply badge bg-brand-gold/15 text-brand-gold-2; }
+
+  .section-label {
+    @apply text-[10px] font-semibold uppercase tracking-widest text-slate-500;
+  }
+
+  .gold-bar {
+    @apply h-px w-full bg-gradient-to-r from-brand-gold/30 via-brand-gold/10 to-transparent mb-2;
+  }
+}

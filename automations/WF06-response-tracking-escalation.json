@@ -4,16 +4,256 @@
   "active": true,
   "description": "Daily job (9am) that finds letters past the FCRA 30-day window, re-ingests the updated credit report, evaluates outcomes via Claude, and either closes resolved cases or escalates to the next dispute round.",
   "nodes": [
-    {"id":"4f9d1728","name":"Daily Schedule","type":"n8n-nodes-base.scheduleTrigger","typeVersion":1.2,"position":[0,272],"parameters":{"rule":{"interval":[{"triggerAtHour":9}]}}},
-    {"id":"f539bec8","name":"DB: Letters Past FCRA Window","type":"n8n-nodes-base.postgres","typeVersion":2.5,"position":[224,272],"parameters":{"operation":"executeQuery","query":"SELECT DISTINCT case_id\nFROM dispute_letters\nWHERE letter_status = 'mailed'\n  AND fcra_response_due < now();","options":{}}},
-    {"id":"530cbc4b","name":"Loop Over Cases","type":"n8n-nodes-base.splitInBatches","typeVersion":3,"position":[448,272],"parameters":{"options":{}}},
-    {"id":"40d5a69a","name":"Done","type":"n8n-nodes-base.noOp","typeVersion":1,"position":[672,0]},
-    {"id":"105a8c43","name":"Re-Ingest Updated Report","type":"n8n-nodes-base.executeWorkflow","typeVersion":1.2,"position":[672,192],"parameters":{"workflowId":{"__rl":true,"value":"N6l5jaGhBDVMWJTf","mode":"id"},"options":{"waitForSubWorkflow":true}}}
+    {
+      "id": "4f9d1728",
+      "name": "Daily Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        272
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "f539bec8",
+      "name": "DB: Letters Past FCRA Window",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        224,
+        272
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT DISTINCT case_id\nFROM dispute_letters\nWHERE letter_status = 'mailed'\n  AND fcra_response_due < now();",
+        "options": {}
+      }
+    },
+    {
+      "id": "530cbc4b",
+      "name": "Loop Over Cases",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        448,
+        272
+      ],
+      "parameters": {
+        "options": {}
+      }
+    },
+    {
+      "id": "40d5a69a",
+      "name": "Done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "id": "105a8c43",
+      "name": "Re-Ingest Updated Report",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        672,
+        192
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "N6l5jaGhBDVMWJTf",
+          "mode": "id"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "3b78ed9f",
+      "name": "Evaluate Response & Escalate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        192
+      ],
+      "parameters": {
+        "jsCode": "// Determine next action based on current round and remaining disputable items\nconst inp = $input.first().json;\nconst caseId = inp.case_id;\nconst currentRound = inp.current_round || 1;\nconst remainingDisputable = inp.remaining_disputable || 0;\nconst maxRounds = 3;\n\nlet action, newStatus, newRound;\n\nif (remainingDisputable === 0) {\n  // All items resolved\n  action = 'resolve';\n  newStatus = 'resolved';\n  newRound = currentRound;\n} else if (currentRound < maxRounds) {\n  // Escalate to next round\n  action = 'escalate';\n  newStatus = 'in_progress';\n  newRound = currentRound + 1;\n} else {\n  // Max rounds reached \u2014 recommend legal action\n  action = 'recommend_legal';\n  newStatus = 'escalating';\n  newRound = currentRound;\n}\n\nreturn [{ json: {\n  case_id: caseId,\n  action,\n  new_status: newStatus,\n  new_round: newRound,\n  remaining_disputable: remainingDisputable,\n  notification_type: action === 'resolve' ? 'case_resolved'\n    : action === 'escalate' ? 'escalated_round_' + newRound\n    : 'legal_action_recommended'\n} }];"
+      }
+    },
+    {
+      "id": "79fb09e9",
+      "name": "DB: Get Remaining Disputable Items",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        896,
+        96
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT c.case_id, c.current_round,\n  COUNT(CASE WHEN ni.analysis_status = 'disputable' THEN 1 END) AS remaining_disputable\nFROM cases c\nLEFT JOIN negative_items ni ON ni.case_id = c.case_id\nWHERE c.case_id = '{{ $json.case_id }}'\nGROUP BY c.case_id, c.current_round;",
+        "options": {}
+      }
+    },
+    {
+      "id": "55c263cf",
+      "name": "DB: Update Case for Next Round",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1120,
+        192
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE cases SET case_status = '{{ $json.new_status }}', current_round = {{ $json.new_round }}, updated_at = now() WHERE case_id = '{{ $json.case_id }}' RETURNING case_id, case_status, current_round;",
+        "options": {}
+      }
+    },
+    {
+      "id": "7087dc4c",
+      "name": "Notify: Escalation or Resolution",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        192
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "={{ $('Evaluate Response & Escalate').first().json.notification_type }}",
+          "mode": "expression"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "da3f2127",
+      "name": "DB: Log Escalation Event",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1120,
+        96
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO events (case_id, event_type, detail) VALUES ('{{ $json.case_id }}', '{{ $json.action }}', '{{ JSON.stringify($json) }}'::jsonb);",
+        "options": {}
+      }
+    }
   ],
   "connections": {
-    "Daily Schedule":{"main":[[{"node":"DB: Letters Past FCRA Window","type":"main","index":0}]]},
-    "DB: Letters Past FCRA Window":{"main":[[{"node":"Loop Over Cases","type":"main","index":0}]]},
-    "Loop Over Cases":{"main":[[{"node":"Done","type":"main","index":0}],[{"node":"Re-Ingest Updated Report","type":"main","index":0}]]}
+    "Daily Schedule": {
+      "main": [
+        [
+          {
+            "node": "DB: Letters Past FCRA Window",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB: Letters Past FCRA Window": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Cases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Cases": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Re-Ingest Updated Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-Ingest Updated Report": {
+      "main": [
+        [
+          {
+            "node": "DB: Get Remaining Disputable Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB: Get Remaining Disputable Items": {
+      "main": [
+        [
+          {
+            "node": "Evaluate Response & Escalate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate Response & Escalate": {
+      "main": [
+        [
+          {
+            "node": "DB: Update Case for Next Round",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "DB: Log Escalation Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB: Update Case for Next Round": {
+      "main": [
+        [
+          {
+            "node": "Notify: Escalation or Resolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": {"executionOrder":"v1"}
+  "settings": {
+    "executionOrder": "v1"
+  }
 }

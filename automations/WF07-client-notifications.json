@@ -4,23 +4,247 @@
   "active": true,
   "description": "Shared notification service: sends templated email via Gmail OAuth2, optional SMS via Twilio if client opted in, and logs to notifications table. Called by other workflows with case_id and event_type.",
   "nodes": [
-    {"id":"6c03f86f","name":"When Called","type":"n8n-nodes-base.executeWorkflowTrigger","typeVersion":1.1,"position":[0,96],"parameters":{"inputSource":"passthrough"}},
-    {"id":"2e2f06d7","name":"DB: Get Client Contact","type":"n8n-nodes-base.postgres","typeVersion":2.5,"position":[224,96],"parameters":{"operation":"executeQuery","query":"SELECT case_id, first_name, last_name, email, phone, sms_opt_in\nFROM cases WHERE case_id = '{{ $json.case_id }}';","options":{}}},
-    {"id":"2cc988f9","name":"Build Message","type":"n8n-nodes-base.code","typeVersion":2,"position":[448,96],"parameters":{"jsCode":"const ctx = $('When Called').first().json;\nconst c = $input.first().json;\nconst t = {\n  intake_confirmed: { subject: 'Welcome to Williams Equity Capital - your case is open', body: 'Hi ' + c.first_name + ', your case is open. Your 3-day cancellation window is running; dispute work starts after it closes. You owe nothing until services are performed.' },\n  letters_mailed: { subject: 'Your dispute letters are on the way', body: 'Hi ' + c.first_name + ', your dispute letters have been mailed certified to the credit bureaus. They have 30 days to respond.' },\n  round_results: { subject: 'Update on your credit dispute round', body: 'Hi ' + c.first_name + ', the bureaus have responded. Log in to see which items were removed or corrected.' },\n  case_closed: { subject: 'Your credit repair case is complete', body: 'Hi ' + c.first_name + ', all disputable items have been resolved. A summary is available in your portal.' }\n};\nconst msg = t[ctx.event_type] || t.round_results;\nreturn [{ json: { ...c, event_type: ctx.event_type, subject: msg.subject, body: msg.body } }];"}},
-    {"id":"8a2beaab","name":"Send Email","type":"n8n-nodes-base.gmail","typeVersion":2.2,"position":[896,0],"parameters":{"sendTo":"={{ $json.email }}","subject":"={{ $json.subject }}","emailType":"text","message":"={{ $json.body }}","options":{"appendAttribution":false}}},
-    {"id":"0d8100fb","name":"SMS Opted In?","type":"n8n-nodes-base.if","typeVersion":2.2,"position":[672,192],"parameters":{"conditions":{"options":{"caseSensitive":true,"leftValue":"","typeValidation":"loose","version":2},"conditions":[{"leftValue":"={{ $json.sms_opt_in }}","rightValue":"true","operator":{"type":"string","operation":"equals"}}],"combinator":"and"},"options":{}}},
-    {"id":"3749a468","name":"Send SMS (Twilio)","type":"n8n-nodes-base.httpRequest","typeVersion":4.2,"position":[896,192],"parameters":{"method":"POST","url":"=https://api.twilio.com/2010-04-01/Accounts/{{ $env.TWILIO_ACCOUNT_SID }}/Messages.json","authentication":"genericCredentialType","genericAuthType":"httpBasicAuth","sendBody":true,"contentType":"form-urlencoded","bodyParameters":{"parameters":[{"name":"To","value":"={{ $json.phone }}"},{"name":"From","value":"={{ $env.TWILIO_FROM_NUMBER }}"},{"name":"Body","value":"={{ $json.subject }}"}]},"options":{}}},
-    {"id":"f95b88d8","name":"Prepare Notification Log","type":"n8n-nodes-base.code","typeVersion":2,"position":[1120,96],"parameters":{"jsCode":"const resp = $input.first().json;\nconst msg = $('Build Message').first().json;\nconst channel = resp.sid ? 'sms' : 'email';\nreturn [{ json: { case_id: msg.case_id, event_type: msg.event_type, channel } }];"}},
-    {"id":"e6d12dcd","name":"DB: Log Notification","type":"n8n-nodes-base.postgres","typeVersion":2.5,"position":[1344,96],"parameters":{"operation":"executeQuery","query":"INSERT INTO notifications (case_id, event_type, channel, sent_at)\nVALUES ('{{ $json.case_id }}', '{{ $json.event_type }}', '{{ $json.channel }}', now());","options":{}}}
+    {
+      "id": "6c03f86f",
+      "name": "When Called",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        96
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "2e2f06d7",
+      "name": "DB: Get Client Contact",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        224,
+        96
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT case_id, first_name, last_name, email, phone, sms_opt_in\nFROM cases WHERE case_id = '{{ $json.case_id }}';",
+        "options": {}
+      }
+    },
+    {
+      "id": "2cc988f9",
+      "name": "Build Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        96
+      ],
+      "parameters": {
+        "jsCode": "const ctx = $('When Called').first().json;\nconst c = $input.first().json;\nconst eventType = ctx.event_type || 'case_update';\nconst name = c.first_name || 'Client';\nconst caseId = ctx.case_id || c.case_id;\n\nconst WEC_PHONE = '(833) WEC-9933';\nconst WEC_EMAIL = 'info@WilliamsEquityCapital.com';\nconst PORTAL_URL = 'https://www.williamsequitycapital.com/portal';\nconst sig = `\n\nWilliams Equity Capital\n${WEC_PHONE} | ${WEC_EMAIL}\nCase: ${caseId}`;\n\nconst messages = {\n  intake_confirmed: {\n    subject: 'Your WEC Credit Repair Case Is Open',\n    body: `Hi ${name},\n\nYour case with Williams Equity Capital has been opened successfully. Here's what happens next:\n\n\u2022 Your 3-day CROA cancellation window is now open\n\u2022 You may cancel for a full refund before the deadline\n\u2022 After the window closes, your credit report will be pulled and analyzed\n\u2022 Dispute letters will be drafted and sent for your review\n\nYou owe NOTHING until services are performed.\n\nLog in to your portal to track progress: ${PORTAL_URL}${sig}`\n  },\n  letters_ready: {\n    subject: 'Your Dispute Letters Are Ready for Review',\n    body: `Hi ${name},\n\nYour FCRA dispute letters have been drafted by our compliance team. They are currently under final review before certified mail dispatch.\n\nYour letters will be sent to:\n\u2022 Experian\n\u2022 TransUnion\n\u2022 Equifax\n\nEach bureau has 30 days to respond under 15 U.S.C. \u00a7 1681i.\n\nView your letters: ${PORTAL_URL}${sig}`\n  },\n  letters_mailed: {\n    subject: 'Your Dispute Letters Have Been Mailed',\n    body: `Hi ${name},\n\nYour dispute letters have been mailed via USPS Certified Mail with Return Receipt Requested.\n\nUnder the FCRA (15 U.S.C. \u00a7 1681i), the credit bureaus have 30 days to complete their investigation and respond.\n\nWe will monitor for responses and notify you immediately when a bureau replies.\n\nTrack your case: ${PORTAL_URL}${sig}`\n  },\n  bureau_response_received: {\n    subject: 'Bureau Response Received \u2014 Action Required',\n    body: `Hi ${name},\n\nWe have received a response from a credit bureau regarding your disputes.\n\nOur team is evaluating the response and will determine if any items were resolved. If items remain inaccurate, we will escalate to the next dispute round.\n\nLog in to see the update: ${PORTAL_URL}${sig}`\n  },\n  escalated_round_2: {\n    subject: 'Escalating to Round 2 \u2014 Method of Verification Demand',\n    body: `Hi ${name},\n\nThe credit bureaus did not fully resolve your disputes in Round 1. We are escalating to Round 2.\n\nRound 2 sends a formal Method of Verification demand under 15 U.S.C. \u00a7 1681i(a)(7), requiring the bureau to disclose exactly how they verified the disputed items. This is a stronger legal position.\n\nLog in for details: ${PORTAL_URL}${sig}`\n  },\n  escalated_round_3: {\n    subject: 'Escalating to Round 3 \u2014 Pre-Litigation Demand',\n    body: `Hi ${name},\n\nAfter two rounds of disputes, unresolved items remain. We are escalating to Round 3.\n\nRound 3 letters cite \u00a7 1681n (Willful FCRA Noncompliance) and warn of civil action. This is our strongest pre-litigation position.\n\nIf Round 3 fails, you may have grounds to sue the credit bureau for damages. We recommend consulting with a consumer rights attorney.\n\nLog in: ${PORTAL_URL}${sig}`\n  },\n  legal_action_recommended: {\n    subject: 'Dispute Process Complete \u2014 Legal Action May Be Available',\n    body: `Hi ${name},\n\nWe have completed all dispute rounds on your behalf. Some items may still remain.\n\nBased on the bureaus' failure to correct demonstrably inaccurate information after proper dispute, you may have grounds for civil litigation under:\n\u2022 15 U.S.C. \u00a7 1681n (Willful noncompliance \u2014 up to $1,000 per violation + punitive damages)\n\u2022 15 U.S.C. \u00a7 1681o (Negligent noncompliance)\n\nWe recommend consulting with a FCRA/FDCPA attorney. Our Legal Letters tool can help you draft demand letters.\n\n${PORTAL_URL}${sig}`\n  },\n  case_resolved: {\n    subject: '\ud83c\udf89 Your Credit Repair Case Has Been Resolved',\n    body: `Hi ${name},\n\nCongratulations! We are pleased to report that all disputable items in your case have been resolved.\n\nYour updated credit reports should reflect the corrections within the next 30-60 days as the bureaus update their databases.\n\nTips to maintain your improved credit:\n\u2022 Pay all accounts on time\n\u2022 Keep utilization below 30%\n\u2022 Avoid opening multiple new accounts\n\nThank you for trusting Williams Equity Capital.\n\n${PORTAL_URL}${sig}`\n  },\n  compliance_alert: {\n    subject: 'Important Compliance Notice \u2014 Action Required',\n    body: `Hi ${name},\n\nWe need to bring an important compliance matter to your attention regarding your credit repair case.\n\nPlease log in to your portal immediately for details: ${PORTAL_URL}\n\nIf you have questions, contact us at ${WEC_EMAIL} or ${WEC_PHONE}.${sig}`\n  }\n};\n\nconst msg = messages[eventType] || {\n  subject: 'Update on Your Williams Equity Capital Case',\n  body: `Hi ${name},\n\nThere is an update on your credit repair case (${caseId}). Please log in to your portal for details: ${PORTAL_URL}${sig}`\n};\n\nreturn [{ json: {\n  case_id: caseId,\n  event_type: eventType,\n  email: c.email,\n  phone: c.phone,\n  sms_opt_in: c.sms_opt_in,\n  subject: msg.subject,\n  body: msg.body\n} }];"
+      }
+    },
+    {
+      "id": "8a2beaab",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        896,
+        0
+      ],
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ $json.body }}",
+        "options": {
+          "appendAttribution": false
+        }
+      }
+    },
+    {
+      "id": "0d8100fb",
+      "name": "SMS Opted In?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        672,
+        192
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.sms_opt_in }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "3749a468",
+      "name": "Send SMS (Twilio)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        896,
+        192
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.twilio.com/2010-04-01/Accounts/{{ $env.TWILIO_ACCOUNT_SID }}/Messages.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "To",
+              "value": "={{ $json.phone }}"
+            },
+            {
+              "name": "From",
+              "value": "={{ $env.TWILIO_FROM_NUMBER }}"
+            },
+            {
+              "name": "Body",
+              "value": "={{ $json.subject }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f95b88d8",
+      "name": "Prepare Notification Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        96
+      ],
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst msg = $('Build Message').first().json;\nconst channel = resp.sid ? 'sms' : 'email';\nreturn [{ json: { case_id: msg.case_id, event_type: msg.event_type, channel } }];"
+      }
+    },
+    {
+      "id": "e6d12dcd",
+      "name": "DB: Log Notification",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1344,
+        96
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO notifications (case_id, event_type, channel, sent_at)\nVALUES ('{{ $json.case_id }}', '{{ $json.event_type }}', '{{ $json.channel }}', now());",
+        "options": {}
+      }
+    }
   ],
   "connections": {
-    "When Called":{"main":[[{"node":"DB: Get Client Contact","type":"main","index":0}]]},
-    "DB: Get Client Contact":{"main":[[{"node":"Build Message","type":"main","index":0}]]},
-    "Build Message":{"main":[[{"node":"Send Email","type":"main","index":0},{"node":"SMS Opted In?","type":"main","index":0}]]},
-    "Send Email":{"main":[[{"node":"Prepare Notification Log","type":"main","index":0}]]},
-    "SMS Opted In?":{"main":[[{"node":"Send SMS (Twilio)","type":"main","index":0}]]},
-    "Send SMS (Twilio)":{"main":[[{"node":"Prepare Notification Log","type":"main","index":0}]]},
-    "Prepare Notification Log":{"main":[[{"node":"DB: Log Notification","type":"main","index":0}]]}
+    "When Called": {
+      "main": [
+        [
+          {
+            "node": "DB: Get Client Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB: Get Client Contact": {
+      "main": [
+        [
+          {
+            "node": "Build Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Message": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SMS Opted In?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Prepare Notification Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SMS Opted In?": {
+      "main": [
+        [
+          {
+            "node": "Send SMS (Twilio)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send SMS (Twilio)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Notification Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Notification Log": {
+      "main": [
+        [
+          {
+            "node": "DB: Log Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": {"executionOrder":"v1"}
+  "settings": {
+    "executionOrder": "v1"
+  }
 }
