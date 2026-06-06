@@ -30,3 +30,13 @@ next-env.d.ts
 .idea/
 *.swp
 *.swo
+
+# Generated reports (contain real data)
+reports/*.pdf
+reports/*.html
+
+# Logs
+*.log
+
+# RAG corpus downloads (large files tracked separately if needed)
+rag/corpus/*.pdf

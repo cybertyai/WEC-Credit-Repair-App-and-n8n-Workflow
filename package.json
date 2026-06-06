@@ -1,7 +1,11 @@
 {
   "name": "wec-credit-repair",
   "private": true,
+  "scripts": {
+    "report": "node scripts/generate-report.js"
+  },
   "dependencies": {
-    "next": "^15"
+    "marked": "^12.0.2",
+    "puppeteer": "^22.15.0"
   }
 }
