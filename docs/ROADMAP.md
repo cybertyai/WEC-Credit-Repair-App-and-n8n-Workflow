@@ -24,18 +24,21 @@
 ---
 
 ## Phase 2 — RAG Pipeline
-**Status:** ⏳ Pending
+**Status:** 🔄 In Progress
 
-- ⏳ `legal_chunks` table + pgvector migration (migration 004)
-- ⏳ `match_legal_chunks` SQL function
+- ✅ `legal_chunks` table + pgvector migration (migration 004)
+- ✅ `match_legal_chunks` SQL function + HNSW index
+- ✅ webapp deps: `voyageai`, `@anthropic-ai/sdk`, `tsx`, `vitest` installed
 - ⏳ Legal corpus files in `rag/corpus/`:
   - `fcra-full-text.txt`
   - `fdcpa-full-text.txt`
   - `croa-full-text.txt`
   - `dispute-strategy-guides.txt`
   - `cfpb-medical-debt-2023.txt`
+- ⏳ `lib/rag/chunk.ts` — chunking algorithm (pure, testable)
 - ⏳ `lib/rag/ingest.ts` — chunking + embedding + upsert
 - ⏳ `lib/rag/retrieve.ts` — query embed + similarity search
+- ⏳ `tests/unit/rag-chunking.test.ts`
 - ⏳ 5/5 RAG integration query tests passing
 
 ---
