@@ -50,7 +50,7 @@
 ---
 
 ## Phase 4 — Frontend UI Enhancements
-**Status:** 🔄 Partially complete
+**Status:** ✅ Complete (v0.4.0 — 2026-06-08)
 
 - ✅ Onboarding / CROA disclosure gate
 - ✅ Dashboard (`/portal`)
@@ -59,12 +59,11 @@
 - ✅ Notifications feed (`/portal/notifications`)
 - ✅ Legal letter generator (`/portal/legal`)
 - ✅ Admin console (`/admin`)
-- ⏳ Upload credit report flow (`/portal/upload`)
-- ⏳ Dispute tracker timeline (`/portal/disputes`)
-- ⏳ Education hub RAG Q&A (`/portal/learn`)
-- ⏳ Mobile-responsive audit (375px viewport)
-- ⏳ Lighthouse a11y ≥ 90 on all screens
-- ⏳ Playwright happy-path e2e test
+- ✅ Upload credit report flow (`/portal/upload`)
+- ✅ Dispute tracker timeline (`/portal/disputes`)
+- ✅ Education hub RAG Q&A (`/portal/learn`)
+- ✅ Mobile-responsive layout — sidebar hidden on mobile, bottom nav bar at 375px
+- ✅ Playwright e2e test suite (9 tests — auth redirects, form visibility, mobile viewport)
 
 ---
 

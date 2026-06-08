@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run --config vitest.config.ts",
-    "test:ui": "vitest --ui --config vitest.config.ts"
+    "test:ui": "vitest --ui --config vitest.config.ts",
+    "test:e2e": "playwright test --config playwright.config.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.102.0",
@@ -23,6 +24,7 @@
     "voyageai": "^0.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

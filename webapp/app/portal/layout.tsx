@@ -6,13 +6,17 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, FileText, TrendingUp, Scale,
   Bell, Settings, LogOut, ChevronRight, Shield,
+  Upload, ListChecks, BookOpen,
 } from "lucide-react";
 
 const NAV = [
   { href: "/portal",               label: "Overview",       icon: LayoutDashboard },
   { href: "/portal/letters",       label: "Dispute Letters",icon: FileText },
+  { href: "/portal/disputes",      label: "Dispute Tracker",icon: ListChecks },
+  { href: "/portal/upload",        label: "Upload Report",  icon: Upload },
   { href: "/portal/score",         label: "Score Tracker",  icon: TrendingUp },
   { href: "/portal/legal",         label: "Legal Letters",  icon: Scale },
+  { href: "/portal/learn",         label: "Learn",          icon: BookOpen },
   { href: "/portal/notifications", label: "Notifications",  icon: Bell },
   { href: "/portal/settings",      label: "Settings",       icon: Settings },
 ];
@@ -40,7 +44,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   return (
     <div className="flex min-h-screen bg-brand-navy">
       {/* Sidebar */}
-      <aside className="w-60 flex-shrink-0 bg-surface-1 border-r border-white/[0.06] flex flex-col fixed h-full z-10">
+      <aside className="hidden md:flex w-60 flex-shrink-0 bg-surface-1 border-r border-white/[0.06] flex-col fixed h-full z-10">
         {/* Brand */}
         <div className="p-5 border-b border-white/[0.06]">
           <Link href="/portal" className="flex items-center gap-2.5">
@@ -77,8 +81,18 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         </div>
       </aside>
 
+      {/* Mobile nav bar */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-20 bg-surface-1 border-t border-white/[0.06] flex items-center justify-around px-2 py-2">
+        {NAV.slice(0, 5).map(({ href, label, icon: Icon }) => (
+          <Link key={href} href={href} className="flex flex-col items-center gap-0.5 px-2 py-1 text-slate-400 hover:text-brand-gold transition-colors">
+            <Icon className="w-5 h-5" />
+            <span className="text-[9px]">{label.split(" ")[0]}</span>
+          </Link>
+        ))}
+      </nav>
+
       {/* Main */}
-      <main className="flex-1 ml-60 min-h-screen animate-fade-in">
+      <main className="flex-1 md:ml-60 min-h-screen animate-fade-in pb-20 md:pb-0">
         {children}
       </main>
     </div>
