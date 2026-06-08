@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test": "vitest run --config vitest.config.ts",
+    "test:ui": "vitest --ui --config vitest.config.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.102.0",

@@ -1,0 +1,34 @@
+FAIR CREDIT BILLING ACT — Key Provisions Summary
+15 U.S.C. §§ 1666-1666j
+
+§ 1666. Billing error resolution procedure
+
+A creditor must acknowledge a consumer's written billing error notice within 30 days of receiving it. The creditor then has two complete billing cycles (but no more than 90 days) to either correct the error or explain in writing why the bill is correct.
+
+A billing error includes: a charge not made by the consumer or an authorized user; a charge not properly identified on the statement; a charge for goods or services not accepted or not delivered as agreed; a computational error; a failure to credit a payment or return; and a charge for which the consumer requests clarification or proof of purchase.
+
+During the investigation period, the creditor may not try to collect the disputed amount, restrict or close the account due to the disputed amount, or report the disputed amount as delinquent to any credit bureau. However, the creditor may report that the amount is in dispute.
+
+§ 1666a. Creditor duties after adverse determination
+
+If a creditor determines that a billing error did not occur, it must promptly send the consumer a written explanation of the reasons for that determination. The creditor must also provide copies of any documentary evidence relied upon, if requested by the consumer. The creditor may then report the account as delinquent if payment is not made, but must also report that the amount is disputed and provide the consumer's name and address so the consumer can send a dispute statement to credit bureaus.
+
+§ 1666b. Timely payment rules
+
+A creditor may not treat a payment as late if the creditor failed to deliver the periodic statement at least 21 days before the payment due date. Payment due dates must be the same day each month, and if the due date falls on a day when the creditor does not receive mail or process payments, the creditor may not charge a late fee for payments received on the next business day.
+
+§ 1666c. Prompt crediting of payments
+
+Payments must be credited on the date received. If a creditor specifies requirements for making payments (such as a specific address or format) and the consumer does not follow those requirements, the creditor has a reasonable time to credit the payment — but not more than 5 days.
+
+§ 1666d. Treatment of credit balances
+
+When a credit balance of more than one dollar exists on an account, the creditor must: credit the amount to the account; refund the balance upon written request; make a good-faith effort to refund any remaining balance after 6 months if no further purchases are made. The creditor may not impose any fee based solely on the existence of a credit balance.
+
+§ 1666e. Prohibited creditor actions during dispute
+
+While a billing error dispute is pending, a creditor may not: accelerate any part of the debt; restrict or close the account because of the disputed amount; or report the disputed balance as delinquent. If a creditor violates these provisions, it forfeits the right to collect the disputed amount and related finance charges, up to $50 per violation.
+
+§ 1666j. Relation to state laws
+
+State laws that give greater protections to consumers are not preempted by FCBA. States may enact their own billing error resolution procedures and creditor duties, provided they do not conflict with or provide less protection than federal law.

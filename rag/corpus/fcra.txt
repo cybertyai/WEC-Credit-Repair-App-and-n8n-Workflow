@@ -1,0 +1,59 @@
+FAIR CREDIT REPORTING ACT (15 U.S.C. §§ 1681-1681x)
+
+§ 1681. Congressional findings and statement of purpose
+
+The banking system is dependent upon fair and accurate credit reporting. Inaccurate credit reports directly impair the efficiency of the banking system and unfair credit reporting methods undermine the public confidence. There is a need to ensure that consumer reporting agencies exercise their grave responsibilities with fairness, impartiality, and a respect for the consumer's right to privacy.
+
+§ 1681a. Definitions; rules of construction
+
+The term "consumer reporting agency" means any person which, for monetary fees, dues, or on a cooperative nonprofit basis, regularly engages in the practice of assembling or evaluating consumer credit information for the purpose of furnishing consumer reports to third parties.
+
+The term "consumer report" means any written, oral, or other communication of any information bearing on a consumer's credit worthiness, credit standing, credit capacity, character, general reputation, personal characteristics, or mode of living which is used or expected to be used in connection with a credit transaction.
+
+The term "consumer" means an individual.
+
+The term "file" means all of the information on a consumer recorded and retained by a consumer reporting agency regardless of how the information is stored.
+
+The term "adverse action" includes a denial of credit, insurance, or employment, or a change in the terms of an existing credit arrangement.
+
+§ 1681b. Permissible purposes of consumer reports
+
+A consumer reporting agency may furnish a consumer report only under the following circumstances: in response to the order of a court; in accordance with the written instructions of the consumer; to a person which the agency has reason to believe intends to use the information in connection with a credit transaction involving the consumer; for employment purposes; in connection with the underwriting of insurance; in connection with a determination of the consumer's eligibility for a government-issued license; or for any other legitimate business need.
+
+§ 1681c. Requirements relating to information contained in consumer reports
+
+No consumer reporting agency may make any consumer report containing any of the following items of information: cases under title 11 of the United States Code or under the Bankruptcy Act that, from the date of entry of the order for relief or the date of adjudication, antedate the report by more than 10 years; civil suits, civil judgments, and records of arrest that from date of entry antedate the report by more than 7 years or until the governing statute of limitations has expired, whichever is the longer period; paid tax liens which, from date of payment, antedate the report by more than 7 years; accounts placed for collection or charged to profit and loss which antedate the report by more than 7 years; any other adverse item of information, other than records of convictions of crimes, which antedates the report by more than 7 years.
+
+§ 1681e. Compliance procedures
+
+Every consumer reporting agency shall maintain reasonable procedures to avoid violations of section 1681c and to limit the furnishing of consumer reports to the purposes listed under section 1681b. Whenever a consumer reporting agency prepares a consumer report it shall follow reasonable procedures to assure maximum possible accuracy of the information concerning the individual about whom the report relates.
+
+§ 1681i. Procedure in case of disputed accuracy
+
+If the completeness or accuracy of any item of information contained in a consumer's file is disputed by the consumer and the consumer notifies the agency directly of such dispute, the agency shall, free of charge, conduct a reasonable reinvestigation to determine whether the disputed information is inaccurate and record the current status of the disputed information, or delete the item from the file, before the end of the 30-day period beginning on the date on which the agency receives the notice of dispute from the consumer.
+
+The agency shall promptly provide written notice of the dispute to any person who provided any item of information in dispute. A person who receives a notice of dispute shall conduct an investigation with respect to the disputed information, review all relevant information provided by the consumer reporting agency, and report the results to the agency within 30 days.
+
+If a reinvestigation is completed and the disputed information is found to be inaccurate or cannot be verified, the consumer reporting agency shall promptly delete that item of information from the consumer's file or modify that item of information, as appropriate, based on the results of the reinvestigation.
+
+If the reinvestigation does not resolve the dispute, the consumer may file a brief statement setting forth the nature of the dispute. The consumer reporting agency shall clearly note in any subsequent consumer report containing the information that is in dispute and shall also provide the consumer's statement in or with the report.
+
+§ 1681n. Civil liability for willful noncompliance
+
+Any person who willfully fails to comply with any requirement imposed under this subchapter with respect to any consumer is liable to that consumer: for actual damages sustained by the consumer as a result of the failure or damages of not less than $100 and not more than $1,000; for such amount of punitive damages as the court may allow; and in the case of any successful action, the costs of the action together with reasonable attorney's fees as determined by the court.
+
+§ 1681o. Civil liability for negligent noncompliance
+
+Any person who is negligent in failing to comply with any requirement imposed under this subchapter with respect to any consumer is liable to that consumer: for actual damages sustained by the consumer as a result of the failure; and in the case of any successful action, the costs of the action together with reasonable attorney's fees as determined by the court.
+
+§ 1681s-2. Responsibilities of furnishers of information to consumer reporting agencies
+
+A person shall not furnish any information relating to a consumer to any consumer reporting agency if the person knows or has reasonable cause to believe that the information is inaccurate.
+
+A person shall not furnish information relating to a consumer to any consumer reporting agency if the person has been notified by the consumer that specific information is inaccurate, and the information is in fact inaccurate.
+
+After receiving notice of a dispute from a consumer reporting agency, a furnisher shall conduct an investigation with respect to the disputed information; review all relevant information provided by the consumer reporting agency; report the results of the investigation to the consumer reporting agency; if the investigation finds that the information is incomplete or inaccurate, report those results to all other consumer reporting agencies to which the person furnished the information; and if an item of information disputed by a consumer is found to be inaccurate or incomplete or cannot be verified after any reinvestigation, promptly modify, delete, or block the reporting of that item of information.
+
+§ 1681p. Jurisdiction of courts; limitation of actions
+
+An action to enforce any liability created under this subchapter may be brought in any appropriate United States district court, without regard to the amount in controversy, or in any other court of competent jurisdiction, not later than the earlier of 2 years after the date of discovery by the plaintiff of the violation that is the basis for such liability, or 5 years after the date on which the violation that is the basis for such liability occurs.
