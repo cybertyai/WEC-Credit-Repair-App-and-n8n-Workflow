@@ -17,9 +17,9 @@
 - ✅ WEC dark brand design system (navy #0A1628 + gold #C9952A)
 - ✅ `.env.local.example` with all required keys
 - ✅ `docs/` directory with project memory files
-- ⏳ `rag/corpus/` — legal text corpus
-- ⏳ `tests/` — unit + integration + e2e test suite
-- ⏳ `scripts/generate-report.js` — Puppeteer PDF generator
+- ✅ `rag/corpus/` — legal text corpus (5 statutes, 46 chunks embedded)
+- ✅ `tests/` — unit (31), integration (11), e2e (9) test suite
+- ✅ `scripts/generate-report.js` — Puppeteer PDF generator
 
 ---
 
@@ -39,13 +39,13 @@
 ---
 
 ## Phase 3 — Dispute Engine + Claude Integration
-**Status:** 🔄 In Progress (2026-06-08)
+**Status:** ✅ Complete (v0.4.0 — 2026-06-08)
 
-- ⏳ `lib/dispute-engine/content-filter.ts` — UPL phrase detection
-- ⏳ `lib/dispute-engine/engine.ts` — RAG → Claude → filter pipeline
-- ⏳ `lib/dispute-engine/letter-generator.ts` — citation-backed letter builder
-- ⏳ `app/api/dispute/generate/route.ts` — POST endpoint
-- ⏳ 6/6 item-type integration tests passing
+- ✅ `lib/dispute-engine/content-filter.ts` — 12-pattern UPL phrase detection with cleaned output
+- ✅ `lib/dispute-engine/engine.ts` — RAG → Claude `claude-opus-4-8` → filter pipeline
+- ✅ `lib/dispute-engine/letter-generator.ts` — formal letter builder with all 3 bureau addresses
+- ✅ `app/api/dispute/generate/route.ts` — authenticated POST endpoint with Zod validation
+- ✅ 6/6 item-type integration tests passing (late payment, collection, charge-off, bankruptcy, hard inquiry, not mine)
 
 ---
 
