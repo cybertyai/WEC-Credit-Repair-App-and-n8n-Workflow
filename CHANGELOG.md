@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-08
+
+### Added
+
+#### RAG Pipeline (Phase 2)
+- **`rag/corpus/`** — 5 legal statute corpus files: FCRA, FDCPA, CROA, ECOA, FCBA
+- **`webapp/lib/rag/chunk.ts`** — section-aware text chunker with paragraph splitting and character overlap; assigns globally unique `chunk_index` per source document
+- **`webapp/lib/rag/ingest.ts`** — ingestion script: reads corpus files, embeds with Voyage AI `voyage-law-2` (1024-dim), upserts 46 chunks into Supabase `legal_chunks` table; includes exponential-backoff retry for API rate limits
+- **`webapp/lib/rag/retrieve.ts`** — `retrieveLegalContext(query, matchCount)` — embeds a query with Voyage AI and calls the `match_legal_chunks` Supabase RPC for cosine similarity search
+- **`webapp/vitest.config.ts`** — Vitest configuration pointing to `tests/unit/` with `@` alias
+
+#### Tests
+- **`tests/unit/rag-chunking.test.ts`** — 7 unit tests covering chunk count, source_document field, unique/sequential chunk_index, section heading extraction, empty content prevention, and large-section splitting
+- **`tests/integration/rag-query.ts`** — 5 integration queries against live Supabase; all return correct statute sections with similarity ≥ 0.4
+
+#### Database
+- **Migration 004** (applied) — `legal_chunks` table with `vector(1024)` embedding column, HNSW cosine index, `match_legal_chunks` RPC function, and RLS policies
+
+### Changed
+- `webapp/package.json` — added `test` and `test:ui` scripts (`vitest run --config vitest.config.ts`)
+- `README.md` — added Claude Code / AI development notes section
+
 ## [0.2.0] - 2026-05-27
 
 ### Added
