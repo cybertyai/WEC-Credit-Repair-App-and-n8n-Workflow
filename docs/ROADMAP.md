@@ -24,27 +24,22 @@
 ---
 
 ## Phase 2 — RAG Pipeline
-**Status:** 🔄 In Progress
+**Status:** ✅ Complete (v0.3.0 — 2026-06-08)
 
 - ✅ `legal_chunks` table + pgvector migration (migration 004)
 - ✅ `match_legal_chunks` SQL function + HNSW index
 - ✅ webapp deps: `voyageai`, `@anthropic-ai/sdk`, `tsx`, `vitest` installed
-- ⏳ Legal corpus files in `rag/corpus/`:
-  - `fcra-full-text.txt`
-  - `fdcpa-full-text.txt`
-  - `croa-full-text.txt`
-  - `dispute-strategy-guides.txt`
-  - `cfpb-medical-debt-2023.txt`
-- ⏳ `lib/rag/chunk.ts` — chunking algorithm (pure, testable)
-- ⏳ `lib/rag/ingest.ts` — chunking + embedding + upsert
-- ⏳ `lib/rag/retrieve.ts` — query embed + similarity search
-- ⏳ `tests/unit/rag-chunking.test.ts`
-- ⏳ 5/5 RAG integration query tests passing
+- ✅ Legal corpus files in `rag/corpus/`: FCRA, FDCPA, CROA, ECOA, FCBA
+- ✅ `lib/rag/chunk.ts` — section-aware chunker with overlap (46 chunks total)
+- ✅ `lib/rag/ingest.ts` — Voyage AI voyage-law-2 embeddings + rate-limit retry
+- ✅ `lib/rag/retrieve.ts` — cosine similarity search via Supabase RPC
+- ✅ `tests/unit/rag-chunking.test.ts` — 7/7 passing
+- ✅ 5/5 RAG integration query tests passing
 
 ---
 
 ## Phase 3 — Dispute Engine + Claude Integration
-**Status:** ⏳ Pending (WF03/WF04 handle this in n8n today; need in-app version)
+**Status:** 🔄 In Progress (2026-06-08)
 
 - ⏳ `lib/dispute-engine/content-filter.ts` — UPL phrase detection
 - ⏳ `lib/dispute-engine/engine.ts` — RAG → Claude → filter pipeline

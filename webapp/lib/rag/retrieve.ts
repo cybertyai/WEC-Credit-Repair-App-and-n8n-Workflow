@@ -16,8 +16,20 @@ export async function retrieveLegalContext(query: string, matchCount = 5): Promi
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const embedRes = await voyage.embed({ input: [query], model: 'voyage-law-2' })
-  const queryEmbedding = embedRes.data[0].embedding
+  let embedRes
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      embedRes = await voyage.embed({ input: [query], model: 'voyage-law-2' })
+      break
+    } catch (err: any) {
+      if (err?.statusCode === 429 && attempt < 5) {
+        await new Promise(r => setTimeout(r, attempt * 25000))
+      } else {
+        throw err
+      }
+    }
+  }
+  const queryEmbedding = embedRes!.data[0].embedding
 
   const { data, error } = await supabase.rpc('match_legal_chunks', {
     query_embedding: queryEmbedding,
