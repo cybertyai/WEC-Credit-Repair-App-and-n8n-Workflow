@@ -8,7 +8,7 @@ export interface LetterInput {
   date?: string
 }
 
-const BUREAU_ADDRESSES: Record<Bureau, string> = {
+export const BUREAU_ADDRESSES: Record<Bureau, string> = {
   Equifax: 'Equifax Information Services LLC\nP.O. Box 740256\nAtlanta, GA 30374',
   TransUnion: 'TransUnion LLC\nConsumer Dispute Center\nP.O. Box 2000\nChester, PA 19016',
   Experian: 'Experian\nP.O. Box 4500\nAllen, TX 75013',

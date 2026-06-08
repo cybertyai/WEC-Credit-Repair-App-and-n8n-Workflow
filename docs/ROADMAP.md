@@ -67,6 +67,18 @@
 
 ---
 
+## Phase 7 — Multi-Round Automation
+**Status:** 🔄 In Progress (2026-06-08)
+
+- ✅ DB migration 005 — bureau response fields on `dispute_letters` + `bureau_responses` table
+- ✅ `lib/dispute-engine/re-dispute.ts` — round escalation strategy (R1→R2→R3→R4)
+- ✅ `app/api/case/bureau-response/route.ts` — WF06 webhook records bureau response + triggers re-dispute
+- ✅ `app/api/dispute/re-dispute/route.ts` — generates next-round escalated letter
+- ✅ `/portal/disputes` — shows bureau response text, outcome badge, re-dispute history
+- ✅ Integration tests — 4 round-escalation cases
+
+---
+
 ## Phase 5 — n8n Workflow Automation
 **Status:** ✅ Complete (8 workflows live)
 
