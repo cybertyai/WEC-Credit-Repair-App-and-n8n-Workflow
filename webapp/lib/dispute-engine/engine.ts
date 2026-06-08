@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { retrieveLegalContext } from '../rag/retrieve'
 import { runContentFilter, FilterResult } from './content-filter'
 import { buildDisputeLetter, Bureau } from './letter-generator'
+import { sanitizeText } from '../sanitize'
 
 export type ItemType =
   | 'late_payment'
@@ -38,7 +39,12 @@ const ITEM_TYPE_LABELS: Record<ItemType, string> = {
 }
 
 export async function generateDisputeLetter(input: DisputeInput): Promise<DisputeResult> {
-  const ragQuery = `dispute ${ITEM_TYPE_LABELS[input.itemType]} ${input.reason} FCRA consumer rights`
+  const safeReason = sanitizeText(input.reason)
+  const safeCreditor = sanitizeText(input.creditor)
+  const safeClientName = sanitizeText(input.clientName)
+  const safeClientAddress = sanitizeText(input.clientAddress)
+
+  const ragQuery = `dispute ${ITEM_TYPE_LABELS[input.itemType]} ${safeReason} FCRA consumer rights`
   const chunks = await retrieveLegalContext(ragQuery, 5)
 
   const legalContext = chunks
@@ -52,8 +58,8 @@ export async function generateDisputeLetter(input: DisputeInput): Promise<Disput
   const userPrompt = `Draft dispute letter body paragraphs for the following:
 
 Item type: ${ITEM_TYPE_LABELS[input.itemType]}
-Creditor / Furnisher: ${input.creditor}${input.accountNumber ? `\nAccount number (last 4): ${input.accountNumber.slice(-4)}` : ''}${input.amount ? `\nAmount: $${input.amount}` : ''}
-Dispute reason: ${input.reason}
+Creditor / Furnisher: ${safeCreditor}${input.accountNumber ? `\nAccount number (last 4): ${input.accountNumber.slice(-4)}` : ''}${input.amount ? `\nAmount: $${input.amount}` : ''}
+Dispute reason: ${safeReason}
 Target bureau: ${input.bureau}
 
 Relevant legal statutes for citation:
@@ -77,8 +83,8 @@ Requirements:
   const body = (message.content[0] as { type: string; text: string }).text
   const filter = runContentFilter(body)
   const letter = buildDisputeLetter({
-    clientName: input.clientName,
-    clientAddress: input.clientAddress,
+    clientName: safeClientName,
+    clientAddress: safeClientAddress,
     bureau: input.bureau,
     body: filter.cleaned,
   })

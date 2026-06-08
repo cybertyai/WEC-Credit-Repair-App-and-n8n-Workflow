@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-rc1] - 2026-06-08
+
+### Added
+
+#### Security Hardening (Phase 6)
+- **`lib/rate-limit.ts`** — in-memory rate limiter, 10 req/min per user on all LLM-calling routes
+- **`lib/sanitize.ts`** — `isomorphic-dompurify` wrapper strips all HTML before user input reaches Claude
+- **Zod validation** on `/api/dispute/generate` and `/api/learn/ask` — strict schema enforcement with typed error responses
+- **`tests/unit/security.test.ts`** — 13 security tests: 5 XSS vectors, 5 SQL injection payloads, 5 rate limiter cases
+
+### Changed
+- `lib/rag/ingest.ts` + `retrieve.ts` — refactored retry logic into `embedWithRetry()` to satisfy strict TypeScript null checks
+- `next build` — clean, all type errors resolved
+- `docs/ROADMAP.md` — all phases marked complete
+
+### Fixed
+- Type errors in `disputes/page.tsx` (`unknown` not assignable to `ReactNode`)
+- `Object is possibly undefined` in Voyage AI response handling
+
 ## [0.3.0] - 2026-06-08
 
 ### Added

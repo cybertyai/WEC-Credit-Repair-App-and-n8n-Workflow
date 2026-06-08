@@ -105,12 +105,12 @@ export default async function DisputesPage() {
                           {statusLabel(String(letter.status ?? "pending"))}
                         </span>
                       </div>
-                      {letter.tracking_number && (
+                      {letter.tracking_number != null && (
                         <p className="text-xs text-slate-500">
                           Tracking: <span className="font-mono text-slate-400">{String(letter.tracking_number)}</span>
                         </p>
                       )}
-                      {letter.admin_note && (
+                      {letter.admin_note != null && (
                         <p className="text-xs text-slate-400 italic">Note: {String(letter.admin_note)}</p>
                       )}
                     </div>
